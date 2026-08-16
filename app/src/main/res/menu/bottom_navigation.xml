@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+==============================================================================
+Menu.......: bottom_navigation.xml
+
+Descrizione:
+
+Definisce le cinque sezioni principali della navigazione
+di AutoDiag.
+==============================================================================
+-->
+
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Sezione Home -->
+    <item
+        android:id="@+id/navigation_home"
+        android:icon="@android:drawable/ic_menu_view"
+        android:title="Home" />
+
+    <!-- Sezione Live -->
+    <item
+        android:id="@+id/navigation_live"
+        android:icon="@android:drawable/ic_menu_info_details"
+        android:title="Live" />
+
+    <!-- Sezione DPF -->
+    <item
+        android:id="@+id/navigation_dpf"
+        android:icon="@android:drawable/ic_menu_manage"
+        android:title="DPF" />
+
+    <!-- Sezione DTC -->
+    <item
+        android:id="@+id/navigation_dtc"
+        android:icon="@android:drawable/ic_dialog_alert"
+        android:title="DTC" />
+
+    <!-- Sezione History -->
+    <item
+        android:id="@+id/navigation_history"
+        android:icon="@android:drawable/ic_menu_recent_history"
+        android:title="History" />
+
+</menu>

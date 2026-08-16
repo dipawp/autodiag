@@ -1,0 +1,358 @@
+
+{
+  "version": "1.0",
+  "standard": "SAE J1979 / ISO 15031-5",
+  "mode": "01",
+  "description": "Standard OBD-II current data PIDs",
+
+  "pids": [
+
+    {
+      "pid": "0100",
+      "nameKey": "pid_supported_01_20",
+      "descriptionKey": "pid_supported_01_20_description",
+      "unit": "",
+      "formula": "BITFIELD",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "BITFIELD",
+      "available": true
+    },
+
+    {
+      "pid": "0101",
+      "nameKey": "pid_monitor_status",
+      "descriptionKey": "pid_monitor_status_description",
+      "unit": "",
+      "formula": "BITFIELD",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "BITFIELD",
+      "available": true
+    },
+
+    {
+      "pid": "0102",
+      "nameKey": "pid_freeze_dtc",
+      "descriptionKey": "pid_freeze_dtc_description",
+      "unit": "",
+      "formula": "DTC",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "DTC",
+      "available": true
+    },
+
+    {
+      "pid": "0103",
+      "nameKey": "pid_fuel_system_status",
+      "descriptionKey": "pid_fuel_system_status_description",
+      "unit": "",
+      "formula": "BITFIELD",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "BITFIELD",
+      "available": true
+    },
+
+    {
+      "pid": "0104",
+      "nameKey": "pid_engine_load",
+      "descriptionKey": "pid_engine_load_description",
+      "unit": "%",
+      "formula": "A*100/255",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "PERCENT",
+      "available": true
+    },
+
+    {
+      "pid": "0105",
+      "nameKey": "pid_engine_coolant_temperature",
+      "descriptionKey": "pid_engine_coolant_temperature_description",
+      "unit": "°C",
+      "formula": "A-40",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "TEMPERATURE",
+      "available": true
+    },
+
+    {
+      "pid": "0106",
+      "nameKey": "pid_short_term_fuel_trim_bank_1",
+      "descriptionKey": "pid_short_term_fuel_trim_bank_1_description",
+      "unit": "%",
+      "formula": "(A-128)*100/128",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "PERCENT",
+      "available": true
+    },
+
+    {
+      "pid": "0107",
+      "nameKey": "pid_long_term_fuel_trim_bank_1",
+      "descriptionKey": "pid_long_term_fuel_trim_bank_1_description",
+      "unit": "%",
+      "formula": "(A-128)*100/128",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "PERCENT",
+      "available": true
+    },
+
+    {
+      "pid": "0108",
+      "nameKey": "pid_short_term_fuel_trim_bank_2",
+      "descriptionKey": "pid_short_term_fuel_trim_bank_2_description",
+      "unit": "%",
+      "formula": "(A-128)*100/128",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "PERCENT",
+      "available": true
+    },
+
+    {
+      "pid": "0109",
+      "nameKey": "pid_long_term_fuel_trim_bank_2",
+      "descriptionKey": "pid_long_term_fuel_trim_bank_2_description",
+      "unit": "%",
+      "formula": "(A-128)*100/128",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "PERCENT",
+      "available": true
+    },
+
+    {
+      "pid": "010A",
+      "nameKey": "pid_fuel_pressure",
+      "descriptionKey": "pid_fuel_pressure_description",
+      "unit": "kPa",
+      "formula": "A*3",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "PRESSURE",
+      "available": true
+    },
+
+    {
+      "pid": "010B",
+      "nameKey": "pid_map_pressure",
+      "descriptionKey": "pid_map_pressure_description",
+      "unit": "kPa",
+      "formula": "A",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "PRESSURE",
+      "available": true
+    },
+
+    {
+      "pid": "010C",
+      "nameKey": "pid_engine_rpm",
+      "descriptionKey": "pid_engine_rpm_description",
+      "unit": "rpm",
+      "formula": "((A*256)+B)/4",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "RPM",
+      "available": true
+    },
+
+    {
+      "pid": "010D",
+      "nameKey": "pid_vehicle_speed",
+      "descriptionKey": "pid_vehicle_speed_description",
+      "unit": "km/h",
+      "formula": "A",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "SPEED",
+      "available": true
+    },
+
+    {
+      "pid": "010E",
+      "nameKey": "pid_ignition_timing",
+      "descriptionKey": "pid_ignition_timing_description",
+      "unit": "°",
+      "formula": "(A-128)/2",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "ANGLE",
+      "available": true
+    },
+
+    {
+      "pid": "010F",
+      "nameKey": "pid_intake_air_temperature",
+      "descriptionKey": "pid_intake_air_temperature_description",
+      "unit": "°C",
+      "formula": "A-40",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "TEMPERATURE",
+      "available": true
+    },
+
+    {
+      "pid": "0110",
+      "nameKey": "pid_maf",
+      "descriptionKey": "pid_maf_description",
+      "unit": "g/s",
+      "formula": "((A*256)+B)/100",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "MASS_FLOW",
+      "available": true
+    },
+
+    {
+      "pid": "0111",
+      "nameKey": "pid_throttle_position",
+      "descriptionKey": "pid_throttle_position_description",
+      "unit": "%",
+      "formula": "A*100/255",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "PERCENT",
+      "available": true
+    },
+
+    {
+      "pid": "011F",
+      "nameKey": "pid_engine_runtime",
+      "descriptionKey": "pid_engine_runtime_description",
+      "unit": "s",
+      "formula": "(A*256)+B",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "TIME",
+      "available": true
+    },
+
+    {
+      "pid": "0121",
+      "nameKey": "pid_distance_with_mil",
+      "descriptionKey": "pid_distance_with_mil_description",
+      "unit": "km",
+      "formula": "(A*256)+B",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "DISTANCE",
+      "available": true
+    },
+
+    {
+      "pid": "012F",
+      "nameKey": "pid_fuel_level",
+      "descriptionKey": "pid_fuel_level_description",
+      "unit": "%",
+      "formula": "A*100/255",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "PERCENT",
+      "available": true
+    },
+
+    {
+      "pid": "0131",
+      "nameKey": "pid_distance_since_dtc_clear",
+      "descriptionKey": "pid_distance_since_dtc_clear_description",
+      "unit": "km",
+      "formula": "(A*256)+B",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "DISTANCE",
+      "available": true
+    },
+
+    {
+      "pid": "0133",
+      "nameKey": "pid_barometric_pressure",
+      "descriptionKey": "pid_barometric_pressure_description",
+      "unit": "kPa",
+      "formula": "A",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "PRESSURE",
+      "available": true
+    },
+
+    {
+      "pid": "0142",
+      "nameKey": "pid_control_module_voltage",
+      "descriptionKey": "pid_control_module_voltage_description",
+      "unit": "V",
+      "formula": "((A*256)+B)/1000",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "VOLTAGE",
+      "available": true
+    },
+
+    {
+      "pid": "0146",
+      "nameKey": "pid_ambient_air_temperature",
+      "descriptionKey": "pid_ambient_air_temperature_description",
+      "unit": "°C",
+      "formula": "A-40",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "TEMPERATURE",
+      "available": true
+    },
+
+    {
+      "pid": "0149",
+      "nameKey": "pid_accelerator_pedal_position_d",
+      "descriptionKey": "pid_accelerator_pedal_position_d_description",
+      "unit": "%",
+      "formula": "A*100/255",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "PERCENT",
+      "available": true
+    },
+
+    {
+      "pid": "014A",
+      "nameKey": "pid_accelerator_pedal_position_e",
+      "descriptionKey": "pid_accelerator_pedal_position_e_description",
+      "unit": "%",
+      "formula": "A*100/255",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "PERCENT",
+      "available": true
+    },
+
+    {
+      "pid": "014C",
+      "nameKey": "pid_throttle_actuator",
+      "descriptionKey": "pid_throttle_actuator_description",
+      "unit": "%",
+      "formula": "A*100/255",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "PERCENT",
+      "available": true
+    },
+
+    {
+      "pid": "015E",
+      "nameKey": "pid_engine_fuel_rate",
+      "descriptionKey": "pid_engine_fuel_rate_description",
+      "unit": "L/h",
+      "formula": "((A*256)+B)/20",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "FUEL_RATE",
+      "available": true
+    }
+  ]
+}

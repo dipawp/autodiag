@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+==============================================================================
+Layout.....: fragment_dpf.xml
+
+Descrizione:
+
+Layout iniziale della schermata DPF.
+
+La logica DPF verrà implementata successivamente
+nel package com.dipasoftware.autodiag.dpf.
+==============================================================================
+-->
+
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <TextView
+        android:id="@+id/txtDpf"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:text="DPF"
+        android:textSize="26sp" />
+
+</FrameLayout>

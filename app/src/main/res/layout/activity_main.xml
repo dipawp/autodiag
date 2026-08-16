@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <!--
+        Barra superiore della dashboard.
+
+        Contiene il titolo dell'applicazione e
+        l'accesso alle impostazioni.
+    -->
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/mainToolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:elevation="4dp"
+        app:title="@string/app_name"
+        app:menu="@menu/menu_main" />
+
+    <!--
+        ViewPager2 principale.
+
+        Occupa tutto lo spazio disponibile sopra
+        la BottomNavigationView.
+    -->
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/dashboardPager"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <!--
+        Barra di navigazione inferiore.
+
+        Permette di selezionare:
+        Home, Live, DPF, DTC e History.
+    -->
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottomNavigation"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:menu="@menu/bottom_navigation" />
+
+</LinearLayout>

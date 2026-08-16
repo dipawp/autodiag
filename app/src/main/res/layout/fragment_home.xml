@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <!-- Titolo principale -->
+        <TextView
+            android:id="@+id/txtHomeTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="AutoDiag"
+            android:textSize="30sp"
+            android:textStyle="bold" />
+
+        <!-- Stato connessione -->
+        <TextView
+            android:id="@+id/txtConnectionLabel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:text="Stato connessione"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/txtConnectionStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="● Disconnesso"
+            android:textSize="20sp" />
+
+        <!-- Informazioni ELM327 -->
+        <TextView
+            android:id="@+id/txtElm327"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:text="ELM327: --"
+            android:textSize="18sp" />
+
+        <!-- ECU -->
+        <TextView
+            android:id="@+id/txtEcu"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="ECU: --"
+            android:textSize="18sp" />
+
+        <!-- Protocollo -->
+        <TextView
+            android:id="@+id/txtProtocol"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Protocollo: --"
+            android:textSize="18sp" />
+
+        <!-- VIN -->
+        <TextView
+            android:id="@+id/txtVin"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="VIN: --"
+            android:textSize="18sp" />
+
+        <!-- Connessione -->
+        <Button
+            android:id="@+id/btnConnect"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="40dp"
+            android:text="CONNETTI"
+            android:textSize="16sp" />
+
+
+
+
+        <!-- ====================================================== -->
+        <!-- CONSOLE DIAGNOSTICA TEMPORANEA                         -->
+        <!-- ====================================================== -->
+
+        <TextView
+            android:id="@+id/txtDiagnosticConsoleTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:text="Console diagnostica"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/txtDiagnosticConsoleStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Console pronta"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/txtDiagnosticConsole"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="#202124"
+            android:fontFamily="monospace"
+            android:gravity="top|start"
+            android:padding="12dp"
+            android:scrollbars="vertical"
+            android:text="Nessuna comunicazione."
+            android:textColor="#FFFFFF"
+            android:textSize="13sp" />
+
+
+
+        <!--<TextView
+            android:id="@+id/txtObdTestResult"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:background="#EEEEEE"
+            android:fontFamily="monospace"
+            android:padding="16dp"
+            android:text="Test ELM327 non ancora eseguito."
+            android:textSize="14sp"
+            android:visibility="gone" />-->
+
+
+
+        <!-- Pulsante temporaneo per il test OBD -->
+        <Button
+            android:id="@+id/btnTestObd"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="TEST OBD"
+            android:textSize="16sp" />
+
+    </LinearLayout>
+
+</ScrollView>

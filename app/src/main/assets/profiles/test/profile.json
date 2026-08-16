@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "profileId": "TEST_PROFILE",
+  "manufacturer": "Bosch",
+  "ecuModel": "EDC16C39",
+  "vehicleBrand": "Fiat",
+  "vehicleModel": "Bravo",
+  "engine": "1.9 MJET",
+  "protocol": "CAN",
+  "baudRate": 500000,
+  "parametersFile": "parameters.json",
+  "dtcFile": "dtc.json"
+}
