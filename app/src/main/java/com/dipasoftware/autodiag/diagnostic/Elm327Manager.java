@@ -730,6 +730,11 @@ public class Elm327Manager {
     private final PidSupportChecker pidSupportChecker;
 
 
+
+    @NonNull
+    private final DiagnosticLogger diagnosticLogger;
+
+
     /**************************************************************************
      *
      * COSTRUTTORE PRINCIPALE
@@ -750,20 +755,16 @@ public class Elm327Manager {
 
         this.initialized = false;
 
-        this.pidRepository =
-                new JsonPidRepository(
-                        context.getApplicationContext()
-                );
+        this.pidRepository = new JsonPidRepository(context.getApplicationContext());
 
-        this.obdResponseParser =
-                new ObdResponseParser();
+        this.obdResponseParser = new ObdResponseParser();
 
-        this.pidFormulaEvaluator =
-                new PidFormulaEvaluator();
+        this.pidFormulaEvaluator = new PidFormulaEvaluator();
 
 
-        this.pidSupportChecker =
-                new PidSupportChecker();
+        this.pidSupportChecker = new PidSupportChecker();
+
+        this.diagnosticLogger = new DiagnosticLogger(context);
     }
 
 
@@ -796,6 +797,8 @@ public class Elm327Manager {
 
         this.pidSupportChecker =
                 new PidSupportChecker();
+
+        this.diagnosticLogger = null;
     }
 
 
@@ -950,13 +953,54 @@ public class Elm327Manager {
          * ---------------------------------------------------------
          */
 
-        response =
+        /*response =
                 sendCommand("AT ST 64");
 
         checkOkResponse(
                 "AT ST 64",
                 response
-        );
+        );*/
+        response =
+                sendCommand("AT ST 64");
+
+        /*
+         * AT ST 64 è opzionale.
+         *
+         * Alcuni ELM327/cloni non supportano
+         * questo comando oppure utilizzano
+         * una sintassi diversa.
+         *
+         * Se risponde OK lo utilizziamo.
+         * Se risponde ? continuiamo comunque
+         * l'inizializzazione.
+         */
+        if (!isOkResponse(response)) {
+
+            String normalized =
+                    response == null
+                            ? ""
+                            : response
+                            .replace("\r", "")
+                            .replace("\n", "")
+                            .replace(">", "")
+                            .trim()
+                            .toUpperCase(Locale.US);
+
+            if (!normalized.equals("?")) {
+
+                throw new IOException(
+                        "Risposta inattesa da AT ST 64: "
+                                + formatResponse(response)
+                );
+            }
+        }
+
+
+
+
+
+
+
 
         /*
          * L'ELM327 è configurato.
@@ -1159,7 +1203,15 @@ public class Elm327Manager {
          * ---------------------------------------------------------
          */
 
-        if (!executeAtCommand(
+        /*if (!executeAtCommand(
+                result,
+                "AT ST 64")) {
+
+            return result.toString();
+        }*/
+
+
+        if (!executeOptionalAtCommand(
                 result,
                 "AT ST 64")) {
 
@@ -1242,6 +1294,30 @@ public class Elm327Manager {
         result.append(
                 "=== TEST COMPLETATO ==="
         );
+
+
+
+        /*try {
+
+            if (diagnosticLogger != null) {
+
+                diagnosticLogger.saveLog(
+                        result.toString()
+                );
+            }
+
+        } catch (IOException exception) {
+
+            result.append(
+                    "\nERRORE SALVATAGGIO LOG: "
+                            + exception.getMessage()
+                            + "\n"
+            );
+        }*/
+
+
+
+        saveDiagnosticLog(result);
 
         return result.toString();
     }
@@ -1328,11 +1404,27 @@ public class Elm327Manager {
                 "=== TEST OBD-II ===\n\n"
         );
 
-        if (!initialized) {
+        /*if (!initialized) {
 
             result.append(
                     "ERRORE:\n"
                             + "ELM327 non inizializzato."
+            );
+
+            return result.toString();
+        }*/
+
+
+        try {
+
+            ensureInitialized();
+
+        } catch (IOException exception) {
+
+            result.append(
+                    "ERRORE INIZIALIZZAZIONE ELM327:\n"
+                            + exception.getMessage()
+                            + "\n"
             );
 
             return result.toString();
@@ -1463,12 +1555,30 @@ public class Elm327Manager {
                 "=== LIVE DATA TEST ===\n\n"
         );
 
-        if (!initialized) {
+        /*if (!initialized) {
 
             result.append(
                     "ERRORE:\n"
                             + "ELM327 non inizializzato."
             );
+
+            return result.toString();
+        }*/
+
+
+        try {
+
+            ensureInitialized();
+
+        } catch (IOException exception) {
+
+            result.append(
+                    "ERRORE INIZIALIZZAZIONE ELM327:\n"
+                            + exception.getMessage()
+                            + "\n"
+            );
+
+            saveDiagnosticLog(result);
 
             return result.toString();
         }
@@ -1621,6 +1731,30 @@ public class Elm327Manager {
         result.append(
                 "=== LIVE DATA COMPLETATO ==="
         );
+
+
+
+        /*try {
+
+            if (diagnosticLogger != null) {
+
+                diagnosticLogger.saveLog(
+                        result.toString()
+                );
+            }
+
+        } catch (IOException exception) {
+
+            result.append(
+                    "\nERRORE SALVATAGGIO LOG: "
+                            + exception.getMessage()
+                            + "\n"
+            );
+        }*/
+
+        saveDiagnosticLog(result);
+
+
 
         return result.toString();
     }
@@ -2601,5 +2735,117 @@ public class Elm327Manager {
         return response
                 .toUpperCase()
                 .contains("NO DATA");
+    }
+
+
+    /**
+     * Assicura che l'ELM327 sia inizializzato.
+     *
+     * Se non è ancora inizializzato, esegue automaticamente
+     * la procedura di inizializzazione.
+     *
+     * @throws IOException errore di comunicazione.
+     */
+    private void ensureInitialized()
+            throws IOException {
+
+        if (initialized) {
+            return;
+        }
+
+        if (!connection.isConnected()) {
+
+            throw new IOException(
+                    "Connection non connessa."
+            );
+        }
+
+        initialize();
+    }
+
+
+    /**
+     * Salva il log diagnostico se il logger è disponibile.
+     *
+     * @param result contenuto del log.
+     */
+    private void saveDiagnosticLog(
+            @NonNull StringBuilder result) {
+
+        if (diagnosticLogger == null) {
+            return;
+        }
+
+        try {
+
+            diagnosticLogger.saveLog(
+                    result.toString()
+            );
+
+        } catch (IOException exception) {
+
+            result.append(
+                    "\nERRORE SALVATAGGIO LOG: "
+                            + exception.getMessage()
+                            + "\n"
+            );
+        }
+    }
+
+
+
+    private boolean executeOptionalAtCommand(
+            @NonNull StringBuilder result,
+            @NonNull String command)
+            throws IOException {
+
+        result.append(
+                "Invio: "
+                        + command
+                        + "\n"
+        );
+
+        String response =
+                sendCommand(command);
+
+        result.append(
+                "RX: "
+                        + formatResponse(response)
+                        + "\n\n"
+        );
+
+        if (isOkResponse(response)) {
+            return true;
+        }
+
+        String normalized =
+                response == null
+                        ? ""
+                        : response
+                        .replace("\r", "")
+                        .replace("\n", "")
+                        .replace(">", "")
+                        .trim()
+                        .toUpperCase(Locale.US);
+
+        if (normalized.equals("?")) {
+
+            result.append(
+                    "AVVISO: comando "
+                            + command
+                            + " non supportato "
+                            + "dal firmware ELM327.\n\n"
+            );
+
+            return true;
+        }
+
+        result.append(
+                "ERRORE: risposta inattesa da "
+                        + command
+                        + ".\n"
+        );
+
+        return false;
     }
 }
