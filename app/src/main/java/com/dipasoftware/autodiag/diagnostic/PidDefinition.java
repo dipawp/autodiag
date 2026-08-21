@@ -1,7 +1,6 @@
 package com.dipasoftware.autodiag.diagnostic;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 
 /**
  * ****************************************************************************
@@ -16,13 +15,37 @@ import androidx.annotation.Nullable;
  *
  * Rappresenta la definizione di un singolo PID diagnostico.
  *
- * La definizione viene caricata dai file JSON presenti
- * nelle risorse raw dell'applicazione.
+ * La definizione viene caricata dal catalogo JSON dello standard OBD-II.
  *
- * La classe non contiene la traduzione del nome o della
- * descrizione. Contiene invece le chiavi di localizzazione
- * che verranno risolte successivamente tramite le risorse
- * Android.
+ * La classe descrive COME deve essere interpretato un PID, ma non contiene
+ * la logica vera e propria di decodifica.
+ *
+ * Esempio:
+ *
+ *     PID 0104
+ *
+ *     decoder = FORMULA
+ *     formula = A*100/255
+ *
+ * oppure:
+ *
+ *     PID 0100
+ *
+ *     decoder = BITFIELD
+ *     formula = ""
+ *
+ * La classe non contiene il nome e la descrizione tradotti.
+ * Contiene invece le relative chiavi di localizzazione Android.
+ *
+ * IMPORTANTE:
+ *
+ * Il fatto che un PID sia presente in questa classe significa che il PID
+ * appartiene al catalogo conosciuto dall'applicazione.
+ *
+ * NON significa che il PID sia supportato dall'ECU attualmente collegata.
+ *
+ * Il supporto reale viene determinato separatamente tramite le bitmap
+ * restituite dalla ECU.
  *
  * ****************************************************************************
  */
@@ -34,6 +57,8 @@ public class PidDefinition {
      * Esempio:
      *
      * 010C
+     *
+     * Il valore comprende Mode + PID.
      */
     @NonNull
     private final String pid;
@@ -53,7 +78,7 @@ public class PidDefinition {
     private final String descriptionKey;
 
     /**
-     * Unità di misura.
+     * Unità di misura del valore decodificato.
      *
      * Può essere vuota per PID che non rappresentano
      * direttamente una grandezza numerica.
@@ -62,7 +87,21 @@ public class PidDefinition {
     private final String unit;
 
     /**
-     * Formula di conversione dei byte ricevuti.
+     * Tipo di decoder utilizzato per interpretare
+     * i dati restituiti dalla ECU.
+     *
+     * Esempi:
+     *
+     * FORMULA
+     * BITFIELD
+     * DTC
+     * RAW
+     */
+    @NonNull
+    private final String decoder;
+
+    /**
+     * Formula matematica utilizzata dal decoder FORMULA.
      *
      * Esempi:
      *
@@ -71,17 +110,21 @@ public class PidDefinition {
      * A*100/255
      *
      * ((A*256)+B)/4
+     *
+     * Per decoder che non utilizzano una formula matematica,
+     * ad esempio BITFIELD o DTC, il valore può essere vuoto.
      */
     @NonNull
     private final String formula;
 
     /**
-     * Numero di byte dati restituiti dal PID.
+     * Numero di byte dati restituiti dalla ECU
+     * necessari per interpretare il PID.
      */
     private final int bytes;
 
     /**
-     * Modalità diagnostica.
+     * Modalità diagnostica OBD-II.
      *
      * Esempio:
      *
@@ -91,7 +134,7 @@ public class PidDefinition {
     private final String mode;
 
     /**
-     * Tipo logico del dato.
+     * Tipo logico del dato restituito dal PID.
      *
      * Esempi:
      *
@@ -100,77 +143,77 @@ public class PidDefinition {
      * PERCENT
      * PRESSURE
      * VOLTAGE
+     * BITFIELD
+     * DTC
      */
     @NonNull
     private final String dataType;
 
     /**
-     * Indica se il PID è disponibile nel dataset.
-     */
-    private final boolean available;
-
-    /**
-     * Costruttore.
+     * Costruisce una definizione PID.
      *
-     * @param pid identificatore PID.
-     * @param nameKey chiave nome localizzato.
-     * @param descriptionKey chiave descrizione localizzata.
+     * @param pid identificatore completo del PID.
+     * @param nameKey chiave localizzazione del nome.
+     * @param descriptionKey chiave localizzazione della descrizione.
      * @param unit unità di misura.
-     * @param formula formula di conversione.
-     * @param bytes numero di byte dati.
+     * @param decoder tipo di decoder.
+     * @param formula formula matematica del decoder, se prevista.
+     * @param bytes numero di byte dati richiesti.
      * @param mode modalità diagnostica.
-     * @param dataType tipo del dato.
-     * @param available disponibilità del PID.
+     * @param dataType tipo logico del dato.
      */
     public PidDefinition(
             @NonNull String pid,
             @NonNull String nameKey,
             @NonNull String descriptionKey,
             @NonNull String unit,
+            @NonNull String decoder,
             @NonNull String formula,
             int bytes,
             @NonNull String mode,
-            @NonNull String dataType,
-            boolean available) {
+            @NonNull String dataType) {
 
         this.pid = pid;
         this.nameKey = nameKey;
         this.descriptionKey = descriptionKey;
         this.unit = unit;
+        this.decoder = decoder;
         this.formula = formula;
         this.bytes = bytes;
         this.mode = mode;
         this.dataType = dataType;
-        this.available = available;
     }
 
     /**
-     * Restituisce il PID.
+     * Restituisce l'identificatore completo del PID.
      *
      * @return identificatore PID.
      */
     @NonNull
     public String getPid() {
+
         return pid;
     }
 
     /**
-     * Restituisce la chiave del nome.
+     * Restituisce la chiave di localizzazione del nome.
      *
-     * @return chiave localizzazione nome.
+     * @return chiave nome.
      */
     @NonNull
     public String getNameKey() {
+
         return nameKey;
     }
 
     /**
-     * Restituisce la chiave della descrizione.
+     * Restituisce la chiave di localizzazione della descrizione.
      *
-     * @return chiave localizzazione descrizione.
+     * @return chiave descrizione.
      */
     @NonNull
     public String getDescriptionKey() {
+
         return descriptionKey;
     }
 
@@ -181,60 +224,69 @@ public class PidDefinition {
      */
     @NonNull
     public String getUnit() {
+
         return unit;
     }
 
     /**
-     * Restituisce la formula di conversione.
+     * Restituisce il tipo di decoder.
      *
-     * @return formula.
+     * @return tipo decoder.
+     */
+    @NonNull
+    public String getDecoder() {
+
+        return decoder;
+    }
+
+    /**
+     * Restituisce la formula matematica del PID.
+     *
+     * @return formula oppure stringa vuota se il decoder
+     *         non utilizza una formula.
      */
     @NonNull
     public String getFormula() {
+
         return formula;
     }
 
     /**
-     * Restituisce il numero di byte dati.
+     * Restituisce il numero di byte dati richiesti
+     * per il PID.
      *
      * @return numero di byte.
      */
     public int getBytes() {
+
         return bytes;
     }
 
     /**
-     * Restituisce la modalità diagnostica.
+     * Restituisce la modalità diagnostica OBD-II.
      *
      * @return modalità.
      */
     @NonNull
     public String getMode() {
+
         return mode;
     }
 
     /**
-     * Restituisce il tipo del dato.
+     * Restituisce il tipo logico del dato.
      *
      * @return tipo dato.
      */
     @NonNull
     public String getDataType() {
+
         return dataType;
     }
 
     /**
-     * Verifica se il PID è disponibile.
-     *
-     * @return true se disponibile.
-     */
-    public boolean isAvailable() {
-        return available;
-    }
-
-    /**
      * Restituisce una rappresentazione testuale
-     * della definizione.
+     * completa della definizione PID.
      *
      * @return descrizione della definizione.
      */
@@ -247,11 +299,11 @@ public class PidDefinition {
                 ", nameKey='" + nameKey + '\'' +
                 ", descriptionKey='" + descriptionKey + '\'' +
                 ", unit='" + unit + '\'' +
+                ", decoder='" + decoder + '\'' +
                 ", formula='" + formula + '\'' +
                 ", bytes=" + bytes +
                 ", mode='" + mode + '\'' +
                 ", dataType='" + dataType + '\'' +
-                ", available=" + available +
                 '}';
     }
 }

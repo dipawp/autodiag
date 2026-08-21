@@ -1,9 +1,8 @@
-
 {
-  "version": "1.0",
+  "version": "2.0",
   "standard": "SAE J1979 / ISO 15031-5",
   "mode": "01",
-  "description": "Standard OBD-II current data PIDs",
+  "description": "OBD-II standard current data PIDs",
 
   "pids": [
 
@@ -12,11 +11,11 @@
       "nameKey": "pid_supported_01_20",
       "descriptionKey": "pid_supported_01_20_description",
       "unit": "",
-      "formula": "BITFIELD",
+      "decoder": "BITFIELD",
+      "formula": "",
       "bytes": 4,
       "mode": "01",
-      "dataType": "BITFIELD",
-      "available": true
+      "dataType": "BITFIELD"
     },
 
     {
@@ -24,11 +23,11 @@
       "nameKey": "pid_monitor_status",
       "descriptionKey": "pid_monitor_status_description",
       "unit": "",
-      "formula": "BITFIELD",
+      "decoder": "BITFIELD",
+      "formula": "",
       "bytes": 4,
       "mode": "01",
-      "dataType": "BITFIELD",
-      "available": true
+      "dataType": "BITFIELD"
     },
 
     {
@@ -36,11 +35,11 @@
       "nameKey": "pid_freeze_dtc",
       "descriptionKey": "pid_freeze_dtc_description",
       "unit": "",
-      "formula": "DTC",
+      "decoder": "DTC",
+      "formula": "",
       "bytes": 2,
       "mode": "01",
-      "dataType": "DTC",
-      "available": true
+      "dataType": "DTC"
     },
 
     {
@@ -48,11 +47,11 @@
       "nameKey": "pid_fuel_system_status",
       "descriptionKey": "pid_fuel_system_status_description",
       "unit": "",
-      "formula": "BITFIELD",
+      "decoder": "BITFIELD",
+      "formula": "",
       "bytes": 2,
       "mode": "01",
-      "dataType": "BITFIELD",
-      "available": true
+      "dataType": "BITFIELD"
     },
 
     {
@@ -60,11 +59,11 @@
       "nameKey": "pid_engine_load",
       "descriptionKey": "pid_engine_load_description",
       "unit": "%",
+      "decoder": "FORMULA",
       "formula": "A*100/255",
       "bytes": 1,
       "mode": "01",
-      "dataType": "PERCENT",
-      "available": true
+      "dataType": "PERCENT"
     },
 
     {
@@ -72,11 +71,11 @@
       "nameKey": "pid_engine_coolant_temperature",
       "descriptionKey": "pid_engine_coolant_temperature_description",
       "unit": "°C",
+      "decoder": "FORMULA",
       "formula": "A-40",
       "bytes": 1,
       "mode": "01",
-      "dataType": "TEMPERATURE",
-      "available": true
+      "dataType": "TEMPERATURE"
     },
 
     {
@@ -84,11 +83,11 @@
       "nameKey": "pid_short_term_fuel_trim_bank_1",
       "descriptionKey": "pid_short_term_fuel_trim_bank_1_description",
       "unit": "%",
-      "formula": "(A-128)*100/128",
+      "decoder": "FORMULA",
+      "formula": "(A*100/128)-100",
       "bytes": 1,
       "mode": "01",
-      "dataType": "PERCENT",
-      "available": true
+      "dataType": "PERCENT"
     },
 
     {
@@ -96,11 +95,11 @@
       "nameKey": "pid_long_term_fuel_trim_bank_1",
       "descriptionKey": "pid_long_term_fuel_trim_bank_1_description",
       "unit": "%",
-      "formula": "(A-128)*100/128",
+      "decoder": "FORMULA",
+      "formula": "(A*100/128)-100",
       "bytes": 1,
       "mode": "01",
-      "dataType": "PERCENT",
-      "available": true
+      "dataType": "PERCENT"
     },
 
     {
@@ -108,11 +107,11 @@
       "nameKey": "pid_short_term_fuel_trim_bank_2",
       "descriptionKey": "pid_short_term_fuel_trim_bank_2_description",
       "unit": "%",
-      "formula": "(A-128)*100/128",
+      "decoder": "FORMULA",
+      "formula": "(A*100/128)-100",
       "bytes": 1,
       "mode": "01",
-      "dataType": "PERCENT",
-      "available": true
+      "dataType": "PERCENT"
     },
 
     {
@@ -120,11 +119,11 @@
       "nameKey": "pid_long_term_fuel_trim_bank_2",
       "descriptionKey": "pid_long_term_fuel_trim_bank_2_description",
       "unit": "%",
-      "formula": "(A-128)*100/128",
+      "decoder": "FORMULA",
+      "formula": "(A*100/128)-100",
       "bytes": 1,
       "mode": "01",
-      "dataType": "PERCENT",
-      "available": true
+      "dataType": "PERCENT"
     },
 
     {
@@ -132,11 +131,11 @@
       "nameKey": "pid_fuel_pressure",
       "descriptionKey": "pid_fuel_pressure_description",
       "unit": "kPa",
+      "decoder": "FORMULA",
       "formula": "A*3",
       "bytes": 1,
       "mode": "01",
-      "dataType": "PRESSURE",
-      "available": true
+      "dataType": "PRESSURE"
     },
 
     {
@@ -144,11 +143,11 @@
       "nameKey": "pid_map_pressure",
       "descriptionKey": "pid_map_pressure_description",
       "unit": "kPa",
+      "decoder": "FORMULA",
       "formula": "A",
       "bytes": 1,
       "mode": "01",
-      "dataType": "PRESSURE",
-      "available": true
+      "dataType": "PRESSURE"
     },
 
     {
@@ -156,11 +155,11 @@
       "nameKey": "pid_engine_rpm",
       "descriptionKey": "pid_engine_rpm_description",
       "unit": "rpm",
+      "decoder": "FORMULA",
       "formula": "((A*256)+B)/4",
       "bytes": 2,
       "mode": "01",
-      "dataType": "RPM",
-      "available": true
+      "dataType": "RPM"
     },
 
     {
@@ -168,11 +167,11 @@
       "nameKey": "pid_vehicle_speed",
       "descriptionKey": "pid_vehicle_speed_description",
       "unit": "km/h",
+      "decoder": "FORMULA",
       "formula": "A",
       "bytes": 1,
       "mode": "01",
-      "dataType": "SPEED",
-      "available": true
+      "dataType": "SPEED"
     },
 
     {
@@ -180,11 +179,11 @@
       "nameKey": "pid_ignition_timing",
       "descriptionKey": "pid_ignition_timing_description",
       "unit": "°",
-      "formula": "(A-128)/2",
+      "decoder": "FORMULA",
+      "formula": "(A/2)-64",
       "bytes": 1,
       "mode": "01",
-      "dataType": "ANGLE",
-      "available": true
+      "dataType": "ANGLE"
     },
 
     {
@@ -192,11 +191,11 @@
       "nameKey": "pid_intake_air_temperature",
       "descriptionKey": "pid_intake_air_temperature_description",
       "unit": "°C",
+      "decoder": "FORMULA",
       "formula": "A-40",
       "bytes": 1,
       "mode": "01",
-      "dataType": "TEMPERATURE",
-      "available": true
+      "dataType": "TEMPERATURE"
     },
 
     {
@@ -204,11 +203,11 @@
       "nameKey": "pid_maf",
       "descriptionKey": "pid_maf_description",
       "unit": "g/s",
+      "decoder": "FORMULA",
       "formula": "((A*256)+B)/100",
       "bytes": 2,
       "mode": "01",
-      "dataType": "MASS_FLOW",
-      "available": true
+      "dataType": "MASS_FLOW"
     },
 
     {
@@ -216,11 +215,167 @@
       "nameKey": "pid_throttle_position",
       "descriptionKey": "pid_throttle_position_description",
       "unit": "%",
+      "decoder": "FORMULA",
       "formula": "A*100/255",
       "bytes": 1,
       "mode": "01",
-      "dataType": "PERCENT",
-      "available": true
+      "dataType": "PERCENT"
+    },
+
+    {
+      "pid": "0112",
+      "nameKey": "pid_commanded_secondary_air_status",
+      "descriptionKey": "pid_commanded_secondary_air_status_description",
+      "unit": "",
+      "decoder": "ENUM",
+      "formula": "",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "ENUM"
+    },
+
+    {
+      "pid": "0113",
+      "nameKey": "pid_oxygen_sensors_present",
+      "descriptionKey": "pid_oxygen_sensors_present_description",
+      "unit": "",
+      "decoder": "BITFIELD",
+      "formula": "",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "BITFIELD"
+    },
+
+    {
+      "pid": "0114",
+      "nameKey": "pid_oxygen_sensor_1",
+      "descriptionKey": "pid_oxygen_sensor_1_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "voltage=A/200;trim=(B*100/128)-100",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "0115",
+      "nameKey": "pid_oxygen_sensor_2",
+      "descriptionKey": "pid_oxygen_sensor_2_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "voltage=A/200;trim=(B*100/128)-100",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "0116",
+      "nameKey": "pid_oxygen_sensor_3",
+      "descriptionKey": "pid_oxygen_sensor_3_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "voltage=A/200;trim=(B*100/128)-100",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "0117",
+      "nameKey": "pid_oxygen_sensor_4",
+      "descriptionKey": "pid_oxygen_sensor_4_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "voltage=A/200;trim=(B*100/128)-100",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "0118",
+      "nameKey": "pid_oxygen_sensor_5",
+      "descriptionKey": "pid_oxygen_sensor_5_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "voltage=A/200;trim=(B*100/128)-100",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "0119",
+      "nameKey": "pid_oxygen_sensor_6",
+      "descriptionKey": "pid_oxygen_sensor_6_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "voltage=A/200;trim=(B*100/128)-100",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "011A",
+      "nameKey": "pid_oxygen_sensor_7",
+      "descriptionKey": "pid_oxygen_sensor_7_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "voltage=A/200;trim=(B*100/128)-100",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "011B",
+      "nameKey": "pid_oxygen_sensor_8",
+      "descriptionKey": "pid_oxygen_sensor_8_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "voltage=A/200;trim=(B*100/128)-100",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "011C",
+      "nameKey": "pid_obd_standard",
+      "descriptionKey": "pid_obd_standard_description",
+      "unit": "",
+      "decoder": "ENUM",
+      "formula": "",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "ENUM"
+    },
+
+    {
+      "pid": "011D",
+      "nameKey": "pid_oxygen_sensors_present_4_banks",
+      "descriptionKey": "pid_oxygen_sensors_present_4_banks_description",
+      "unit": "",
+      "decoder": "BITFIELD",
+      "formula": "",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "BITFIELD"
+    },
+
+    {
+      "pid": "011E",
+      "nameKey": "pid_auxiliary_input_status",
+      "descriptionKey": "pid_auxiliary_input_status_description",
+      "unit": "",
+      "decoder": "BITFIELD",
+      "formula": "",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "BITFIELD"
     },
 
     {
@@ -228,11 +383,23 @@
       "nameKey": "pid_engine_runtime",
       "descriptionKey": "pid_engine_runtime_description",
       "unit": "s",
+      "decoder": "FORMULA",
       "formula": "(A*256)+B",
       "bytes": 2,
       "mode": "01",
-      "dataType": "TIME",
-      "available": true
+      "dataType": "TIME"
+    },
+
+    {
+      "pid": "0120",
+      "nameKey": "pid_supported_21_40",
+      "descriptionKey": "pid_supported_21_40_description",
+      "unit": "",
+      "decoder": "BITFIELD",
+      "formula": "",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "BITFIELD"
     },
 
     {
@@ -240,11 +407,167 @@
       "nameKey": "pid_distance_with_mil",
       "descriptionKey": "pid_distance_with_mil_description",
       "unit": "km",
+      "decoder": "FORMULA",
       "formula": "(A*256)+B",
       "bytes": 2,
       "mode": "01",
-      "dataType": "DISTANCE",
-      "available": true
+      "dataType": "DISTANCE"
+    },
+
+    {
+      "pid": "0122",
+      "nameKey": "pid_fuel_rail_pressure_relative",
+      "descriptionKey": "pid_fuel_rail_pressure_relative_description",
+      "unit": "kPa",
+      "decoder": "FORMULA",
+      "formula": "((A*256)+B)*0.079",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "PRESSURE"
+    },
+
+    {
+      "pid": "0123",
+      "nameKey": "pid_fuel_rail_pressure_gauge",
+      "descriptionKey": "pid_fuel_rail_pressure_gauge_description",
+      "unit": "kPa",
+      "decoder": "FORMULA",
+      "formula": "((A*256)+B)*10",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "PRESSURE"
+    },
+
+    {
+      "pid": "0124",
+      "nameKey": "pid_oxygen_sensor_1_equivalence_ratio",
+      "descriptionKey": "pid_oxygen_sensor_1_equivalence_ratio_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "lambda=((A*256)+B)*2/65536;voltage=((C*256)+D)*8/65536",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "0125",
+      "nameKey": "pid_oxygen_sensor_2_equivalence_ratio",
+      "descriptionKey": "pid_oxygen_sensor_2_equivalence_ratio_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "lambda=((A*256)+B)*2/65536;voltage=((C*256)+D)*8/65536",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "0126",
+      "nameKey": "pid_oxygen_sensor_3_equivalence_ratio",
+      "descriptionKey": "pid_oxygen_sensor_3_equivalence_ratio_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "lambda=((A*256)+B)*2/65536;voltage=((C*256)+D)*8/65536",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "0127",
+      "nameKey": "pid_oxygen_sensor_4_equivalence_ratio",
+      "descriptionKey": "pid_oxygen_sensor_4_equivalence_ratio_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "lambda=((A*256)+B)*2/65536;voltage=((C*256)+D)*8/65536",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "0128",
+      "nameKey": "pid_oxygen_sensor_5_equivalence_ratio",
+      "descriptionKey": "pid_oxygen_sensor_5_equivalence_ratio_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "lambda=((A*256)+B)*2/65536;voltage=((C*256)+D)*8/65536",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "0129",
+      "nameKey": "pid_oxygen_sensor_6_equivalence_ratio",
+      "descriptionKey": "pid_oxygen_sensor_6_equivalence_ratio_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "lambda=((A*256)+B)*2/65536;voltage=((C*256)+D)*8/65536",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "012A",
+      "nameKey": "pid_oxygen_sensor_7_equivalence_ratio",
+      "descriptionKey": "pid_oxygen_sensor_7_equivalence_ratio_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "lambda=((A*256)+B)*2/65536;voltage=((C*256)+D)*8/65536",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "012B",
+      "nameKey": "pid_oxygen_sensor_8_equivalence_ratio",
+      "descriptionKey": "pid_oxygen_sensor_8_equivalence_ratio_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "lambda=((A*256)+B)*2/65536;voltage=((C*256)+D)*8/65536",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "012C",
+      "nameKey": "pid_commanded_egr",
+      "descriptionKey": "pid_commanded_egr_description",
+      "unit": "%",
+      "decoder": "FORMULA",
+      "formula": "A*100/255",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "PERCENT"
+    },
+
+    {
+      "pid": "012D",
+      "nameKey": "pid_egr_error",
+      "descriptionKey": "pid_egr_error_description",
+      "unit": "%",
+      "decoder": "FORMULA",
+      "formula": "(A*100/128)-100",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "PERCENT"
+    },
+
+    {
+      "pid": "012E",
+      "nameKey": "pid_commanded_evaporative_purge",
+      "descriptionKey": "pid_commanded_evaporative_purge_description",
+      "unit": "%",
+      "decoder": "FORMULA",
+      "formula": "A*100/255",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "PERCENT"
     },
 
     {
@@ -252,11 +575,23 @@
       "nameKey": "pid_fuel_level",
       "descriptionKey": "pid_fuel_level_description",
       "unit": "%",
+      "decoder": "FORMULA",
       "formula": "A*100/255",
       "bytes": 1,
       "mode": "01",
-      "dataType": "PERCENT",
-      "available": true
+      "dataType": "PERCENT"
+    },
+
+    {
+      "pid": "0130",
+      "nameKey": "pid_warmups_since_clear",
+      "descriptionKey": "pid_warmups_since_clear_description",
+      "unit": "",
+      "decoder": "FORMULA",
+      "formula": "A",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "COUNT"
     },
 
     {
@@ -264,11 +599,23 @@
       "nameKey": "pid_distance_since_dtc_clear",
       "descriptionKey": "pid_distance_since_dtc_clear_description",
       "unit": "km",
+      "decoder": "FORMULA",
       "formula": "(A*256)+B",
       "bytes": 2,
       "mode": "01",
-      "dataType": "DISTANCE",
-      "available": true
+      "dataType": "DISTANCE"
+    },
+
+    {
+      "pid": "0132",
+      "nameKey": "pid_evap_vapor_pressure",
+      "descriptionKey": "pid_evap_vapor_pressure_description",
+      "unit": "Pa",
+      "decoder": "SIGNED_FORMULA",
+      "formula": "((signed16(A,B))/4)",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "PRESSURE"
     },
 
     {
@@ -276,11 +623,179 @@
       "nameKey": "pid_barometric_pressure",
       "descriptionKey": "pid_barometric_pressure_description",
       "unit": "kPa",
+      "decoder": "FORMULA",
       "formula": "A",
       "bytes": 1,
       "mode": "01",
-      "dataType": "PRESSURE",
-      "available": true
+      "dataType": "PRESSURE"
+    },
+
+    {
+      "pid": "0134",
+      "nameKey": "pid_oxygen_sensor_1_current",
+      "descriptionKey": "pid_oxygen_sensor_1_current_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "lambda=((A*256)+B)*2/65536;current=((C*256)+D)/256-128",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "0135",
+      "nameKey": "pid_oxygen_sensor_2_current",
+      "descriptionKey": "pid_oxygen_sensor_2_current_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "lambda=((A*256)+B)*2/65536;current=((C*256)+D)/256-128",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "0136",
+      "nameKey": "pid_oxygen_sensor_3_current",
+      "descriptionKey": "pid_oxygen_sensor_3_current_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "lambda=((A*256)+B)*2/65536;current=((C*256)+D)/256-128",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "0137",
+      "nameKey": "pid_oxygen_sensor_4_current",
+      "descriptionKey": "pid_oxygen_sensor_4_current_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "lambda=((A*256)+B)*2/65536;current=((C*256)+D)/256-128",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "0138",
+      "nameKey": "pid_oxygen_sensor_5_current",
+      "descriptionKey": "pid_oxygen_sensor_5_current_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "lambda=((A*256)+B)*2/65536;current=((C*256)+D)/256-128",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "0139",
+      "nameKey": "pid_oxygen_sensor_6_current",
+      "descriptionKey": "pid_oxygen_sensor_6_current_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "lambda=((A*256)+B)*2/65536;current=((C*256)+D)/256-128",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "013A",
+      "nameKey": "pid_oxygen_sensor_7_current",
+      "descriptionKey": "pid_oxygen_sensor_7_current_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "lambda=((A*256)+B)*2/65536;current=((C*256)+D)/256-128",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "013B",
+      "nameKey": "pid_oxygen_sensor_8_current",
+      "descriptionKey": "pid_oxygen_sensor_8_current_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "lambda=((A*256)+B)*2/65536;current=((C*256)+D)/256-128",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "013C",
+      "nameKey": "pid_catalyst_temperature_bank_1_sensor_1",
+      "descriptionKey": "pid_catalyst_temperature_bank_1_sensor_1_description",
+      "unit": "°C",
+      "decoder": "FORMULA",
+      "formula": "((A*256)+B)/10-40",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "TEMPERATURE"
+    },
+
+    {
+      "pid": "013D",
+      "nameKey": "pid_catalyst_temperature_bank_2_sensor_1",
+      "descriptionKey": "pid_catalyst_temperature_bank_2_sensor_1_description",
+      "unit": "°C",
+      "decoder": "FORMULA",
+      "formula": "((A*256)+B)/10-40",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "TEMPERATURE"
+    },
+
+    {
+      "pid": "013E",
+      "nameKey": "pid_catalyst_temperature_bank_1_sensor_2",
+      "descriptionKey": "pid_catalyst_temperature_bank_1_sensor_2_description",
+      "unit": "°C",
+      "decoder": "FORMULA",
+      "formula": "((A*256)+B)/10-40",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "TEMPERATURE"
+    },
+
+    {
+      "pid": "013F",
+      "nameKey": "pid_catalyst_temperature_bank_2_sensor_2",
+      "descriptionKey": "pid_catalyst_temperature_bank_2_sensor_2_description",
+      "unit": "°C",
+      "decoder": "FORMULA",
+      "formula": "((A*256)+B)/10-40",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "TEMPERATURE"
+    },
+
+    {
+      "pid": "0140",
+      "nameKey": "pid_supported_41_60",
+      "descriptionKey": "pid_supported_41_60_description",
+      "unit": "",
+      "decoder": "BITFIELD",
+      "formula": "",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "BITFIELD"
+    },
+
+    {
+      "pid": "0141",
+      "nameKey": "pid_monitor_status_this_drive_cycle",
+      "descriptionKey": "pid_monitor_status_this_drive_cycle_description",
+      "unit": "",
+      "decoder": "BITFIELD",
+      "formula": "",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "BITFIELD"
     },
 
     {
@@ -288,11 +803,47 @@
       "nameKey": "pid_control_module_voltage",
       "descriptionKey": "pid_control_module_voltage_description",
       "unit": "V",
+      "decoder": "FORMULA",
       "formula": "((A*256)+B)/1000",
       "bytes": 2,
       "mode": "01",
-      "dataType": "VOLTAGE",
-      "available": true
+      "dataType": "VOLTAGE"
+    },
+
+    {
+      "pid": "0143",
+      "nameKey": "pid_absolute_load",
+      "descriptionKey": "pid_absolute_load_description",
+      "unit": "%",
+      "decoder": "FORMULA",
+      "formula": "((A*256)+B)*100/255",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "PERCENT"
+    },
+
+    {
+      "pid": "0144",
+      "nameKey": "pid_commanded_air_fuel_equivalence_ratio",
+      "descriptionKey": "pid_commanded_air_fuel_equivalence_ratio_description",
+      "unit": "lambda",
+      "decoder": "FORMULA",
+      "formula": "((A*256)+B)*2/65536",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "RATIO"
+    },
+
+    {
+      "pid": "0145",
+      "nameKey": "pid_relative_throttle_position",
+      "descriptionKey": "pid_relative_throttle_position_description",
+      "unit": "%",
+      "decoder": "FORMULA",
+      "formula": "A*100/255",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "PERCENT"
     },
 
     {
@@ -300,11 +851,35 @@
       "nameKey": "pid_ambient_air_temperature",
       "descriptionKey": "pid_ambient_air_temperature_description",
       "unit": "°C",
+      "decoder": "FORMULA",
       "formula": "A-40",
       "bytes": 1,
       "mode": "01",
-      "dataType": "TEMPERATURE",
-      "available": true
+      "dataType": "TEMPERATURE"
+    },
+
+    {
+      "pid": "0147",
+      "nameKey": "pid_absolute_throttle_position_b",
+      "descriptionKey": "pid_absolute_throttle_position_b_description",
+      "unit": "%",
+      "decoder": "FORMULA",
+      "formula": "A*100/255",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "PERCENT"
+    },
+
+    {
+      "pid": "0148",
+      "nameKey": "pid_absolute_throttle_position_c",
+      "descriptionKey": "pid_absolute_throttle_position_c_description",
+      "unit": "%",
+      "decoder": "FORMULA",
+      "formula": "A*100/255",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "PERCENT"
     },
 
     {
@@ -312,11 +887,11 @@
       "nameKey": "pid_accelerator_pedal_position_d",
       "descriptionKey": "pid_accelerator_pedal_position_d_description",
       "unit": "%",
+      "decoder": "FORMULA",
       "formula": "A*100/255",
       "bytes": 1,
       "mode": "01",
-      "dataType": "PERCENT",
-      "available": true
+      "dataType": "PERCENT"
     },
 
     {
@@ -324,23 +899,239 @@
       "nameKey": "pid_accelerator_pedal_position_e",
       "descriptionKey": "pid_accelerator_pedal_position_e_description",
       "unit": "%",
+      "decoder": "FORMULA",
       "formula": "A*100/255",
       "bytes": 1,
       "mode": "01",
-      "dataType": "PERCENT",
-      "available": true
+      "dataType": "PERCENT"
+    },
+
+    {
+      "pid": "014B",
+      "nameKey": "pid_accelerator_pedal_position_f",
+      "descriptionKey": "pid_accelerator_pedal_position_f_description",
+      "unit": "%",
+      "decoder": "FORMULA",
+      "formula": "A*100/255",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "PERCENT"
     },
 
     {
       "pid": "014C",
-      "nameKey": "pid_throttle_actuator",
-      "descriptionKey": "pid_throttle_actuator_description",
+      "nameKey": "pid_commanded_throttle_actuator",
+      "descriptionKey": "pid_commanded_throttle_actuator_description",
       "unit": "%",
+      "decoder": "FORMULA",
       "formula": "A*100/255",
       "bytes": 1,
       "mode": "01",
-      "dataType": "PERCENT",
-      "available": true
+      "dataType": "PERCENT"
+    },
+
+    {
+      "pid": "014D",
+      "nameKey": "pid_time_with_mil_on",
+      "descriptionKey": "pid_time_with_mil_on_description",
+      "unit": "min",
+      "decoder": "FORMULA",
+      "formula": "(A*256)+B",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "TIME"
+    },
+
+    {
+      "pid": "014E",
+      "nameKey": "pid_time_since_dtc_clear",
+      "descriptionKey": "pid_time_since_dtc_clear_description",
+      "unit": "min",
+      "decoder": "FORMULA",
+      "formula": "(A*256)+B",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "TIME"
+    },
+
+    {
+      "pid": "014F",
+      "nameKey": "pid_maximum_sensor_values",
+      "descriptionKey": "pid_maximum_sensor_values_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "A=air_fuel_ratio;B=oxygen_voltage;C=oxygen_current;D=map_pressure*10",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "MULTI_VALUE"
+    },
+
+    {
+      "pid": "0150",
+      "nameKey": "pid_maximum_maf",
+      "descriptionKey": "pid_maximum_maf_description",
+      "unit": "g/s",
+      "decoder": "MULTI_VALUE",
+      "formula": "A*10",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "MULTI_VALUE"
+    },
+
+    {
+      "pid": "0151",
+      "nameKey": "pid_fuel_type",
+      "descriptionKey": "pid_fuel_type_description",
+      "unit": "",
+      "decoder": "ENUM",
+      "formula": "",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "ENUM"
+    },
+
+    {
+      "pid": "0152",
+      "nameKey": "pid_ethanol_fuel_percentage",
+      "descriptionKey": "pid_ethanol_fuel_percentage_description",
+      "unit": "%",
+      "decoder": "FORMULA",
+      "formula": "A*100/255",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "PERCENT"
+    },
+
+    {
+      "pid": "0153",
+      "nameKey": "pid_absolute_evap_vapor_pressure",
+      "descriptionKey": "pid_absolute_evap_vapor_pressure_description",
+      "unit": "kPa",
+      "decoder": "FORMULA",
+      "formula": "((A*256)+B)/200",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "PRESSURE"
+    },
+
+    {
+      "pid": "0154",
+      "nameKey": "pid_evap_vapor_pressure_signed",
+      "descriptionKey": "pid_evap_vapor_pressure_signed_description",
+      "unit": "Pa",
+      "decoder": "SIGNED_FORMULA",
+      "formula": "signed16(A,B)",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "PRESSURE"
+    },
+
+    {
+      "pid": "0155",
+      "nameKey": "pid_oxygen_sensor_1_wideband",
+      "descriptionKey": "pid_oxygen_sensor_1_wideband_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "0156",
+      "nameKey": "pid_oxygen_sensor_2_wideband",
+      "descriptionKey": "pid_oxygen_sensor_2_wideband_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "0157",
+      "nameKey": "pid_oxygen_sensor_3_wideband",
+      "descriptionKey": "pid_oxygen_sensor_3_wideband_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "0158",
+      "nameKey": "pid_oxygen_sensor_4_wideband",
+      "descriptionKey": "pid_oxygen_sensor_4_wideband_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "0159",
+      "nameKey": "pid_oxygen_sensor_5_wideband",
+      "descriptionKey": "pid_oxygen_sensor_5_wideband_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "015A",
+      "nameKey": "pid_oxygen_sensor_6_wideband",
+      "descriptionKey": "pid_oxygen_sensor_6_wideband_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "015B",
+      "nameKey": "pid_oxygen_sensor_7_wideband",
+      "descriptionKey": "pid_oxygen_sensor_7_wideband_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "015C",
+      "nameKey": "pid_oxygen_sensor_8_wideband",
+      "descriptionKey": "pid_oxygen_sensor_8_wideband_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
+    },
+
+    {
+      "pid": "015D",
+      "nameKey": "pid_oxygen_sensor_1_ratio",
+      "descriptionKey": "pid_oxygen_sensor_1_ratio_description",
+      "unit": "",
+      "decoder": "MULTI_VALUE",
+      "formula": "",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "OXYGEN_SENSOR"
     },
 
     {
@@ -348,11 +1139,107 @@
       "nameKey": "pid_engine_fuel_rate",
       "descriptionKey": "pid_engine_fuel_rate_description",
       "unit": "L/h",
+      "decoder": "FORMULA",
       "formula": "((A*256)+B)/20",
       "bytes": 2,
       "mode": "01",
-      "dataType": "FUEL_RATE",
-      "available": true
+      "dataType": "FUEL_RATE"
+    },
+
+    {
+      "pid": "015F",
+      "nameKey": "pid_engine_reference_torque",
+      "descriptionKey": "pid_engine_reference_torque_description",
+      "unit": "Nm",
+      "decoder": "FORMULA",
+      "formula": "((A*256)+B)",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "TORQUE"
+    },
+
+    {
+      "pid": "0160",
+      "nameKey": "pid_supported_61_80",
+      "descriptionKey": "pid_supported_61_80_description",
+      "unit": "",
+      "decoder": "BITFIELD",
+      "formula": "",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "BITFIELD"
+    },
+
+    {
+      "pid": "0161",
+      "nameKey": "pid_engine_percent_torque",
+      "descriptionKey": "pid_engine_percent_torque_description",
+      "unit": "%",
+      "decoder": "FORMULA",
+      "formula": "A-125",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "PERCENT"
+    },
+
+    {
+      "pid": "0162",
+      "nameKey": "pid_auxiliary_input_status",
+      "descriptionKey": "pid_auxiliary_input_status_description",
+      "unit": "",
+      "decoder": "BITFIELD",
+      "formula": "",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "BITFIELD"
+    },
+
+    {
+      "pid": "0163",
+      "nameKey": "pid_engine_reference_torque",
+      "descriptionKey": "pid_engine_reference_torque_description",
+      "unit": "Nm",
+      "decoder": "FORMULA",
+      "formula": "(A*256)+B",
+      "bytes": 2,
+      "mode": "01",
+      "dataType": "TORQUE"
+    },
+
+    {
+      "pid": "0164",
+      "nameKey": "pid_engine_percent_torque_data",
+      "descriptionKey": "pid_engine_percent_torque_data_description",
+      "unit": "%",
+      "decoder": "MULTI_VALUE",
+      "formula": "",
+      "bytes": 5,
+      "mode": "01",
+      "dataType": "TORQUE"
+    },
+
+    {
+      "pid": "0165",
+      "nameKey": "pid_auxiliary_input_status_2",
+      "descriptionKey": "pid_auxiliary_input_status_2_description",
+      "unit": "",
+      "decoder": "BITFIELD",
+      "formula": "",
+      "bytes": 1,
+      "mode": "01",
+      "dataType": "BITFIELD"
+    },
+
+    {
+      "pid": "0140",
+      "nameKey": "pid_supported_41_60",
+      "descriptionKey": "pid_supported_41_60_description",
+      "unit": "",
+      "decoder": "BITFIELD",
+      "formula": "",
+      "bytes": 4,
+      "mode": "01",
+      "dataType": "BITFIELD"
     }
   ]
 }
