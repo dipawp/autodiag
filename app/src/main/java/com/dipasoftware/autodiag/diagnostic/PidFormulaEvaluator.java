@@ -107,6 +107,92 @@ public class PidFormulaEvaluator {
     }
 
     /**
+     * Tipo di risultato prodotto dalla decodifica di un PID.
+     */
+    public enum ResultType {
+        NUMERIC,
+        MULTI_VALUE
+    }
+
+
+    /**
+     * Risultato generico della decodifica di un PID.
+     *
+     * Permette di mantenere compatibile evaluate(), che restituisce
+     * un double, ma consente ai nuovi decoder di restituire più valori.
+     */
+    public static class EvaluationResult {
+
+        @NonNull
+        private final ResultType type;
+
+        private final double numericValue;
+
+        @NonNull
+        private final java.util.Map<String, Double> values;
+
+        private EvaluationResult(
+                @NonNull ResultType type,
+                double numericValue,
+                @NonNull java.util.Map<String, Double> values) {
+
+            this.type = type;
+            this.numericValue = numericValue;
+            this.values = values;
+        }
+
+        @NonNull
+        public static EvaluationResult numeric(
+                double value) {
+
+            return new EvaluationResult(
+                    ResultType.NUMERIC,
+                    value,
+                    java.util.Collections.emptyMap()
+            );
+        }
+
+        @NonNull
+        public static EvaluationResult multiValue(
+                @NonNull java.util.Map<String, Double> values) {
+
+            return new EvaluationResult(
+                    ResultType.MULTI_VALUE,
+                    0.0,
+                    new java.util.LinkedHashMap<>(values)
+            );
+        }
+
+        @NonNull
+        public ResultType getType() {
+            return type;
+        }
+
+        public boolean isNumeric() {
+            return type == ResultType.NUMERIC;
+        }
+
+        public boolean isMultiValue() {
+            return type == ResultType.MULTI_VALUE;
+        }
+
+        public double getNumericValue() {
+            if (!isNumeric()) {
+                throw new IllegalStateException(
+                        "Il risultato non è numerico."
+                );
+            }
+
+            return numericValue;
+        }
+
+        @NonNull
+        public java.util.Map<String, Double> getValues() {
+            return values;
+        }
+    }
+
+    /**
      * Valuta una formula BITFIELD.
      *
      * Un bitfield OBD può contenere fino a
@@ -186,6 +272,8 @@ public class PidFormulaEvaluator {
         return value & 0xFF;
     }
 
+
+
     /**
      * Parser matematico interno.
      *
@@ -202,6 +290,7 @@ public class PidFormulaEvaluator {
      * - *
      * - /
      * - parentesi
+     * - signed16(A,B)
      *
      * Le lettere rappresentano i byte
      * del PID.
@@ -361,7 +450,8 @@ public class PidFormulaEvaluator {
          * - numeri;
          * - variabili A/B/C/D;
          * - parentesi;
-         * - segno unario.
+         * - segno unario;
+         * - funzioni speciali.
          *
          * @return valore.
          */
@@ -406,6 +496,14 @@ public class PidFormulaEvaluator {
             }
 
             /*
+             * Funzione signed16(A,B).
+             */
+            if (startsWithIdentifier("signed16")) {
+
+                return parseSigned16Function();
+            }
+
+            /*
              * Variabile byte.
              */
             if (position <
@@ -433,6 +531,203 @@ public class PidFormulaEvaluator {
              * Numero.
              */
             return parseNumber();
+        }
+
+        /**
+         * Verifica se nella posizione corrente
+         * inizia l'identificatore indicato.
+         *
+         * @param identifier identificatore.
+         *
+         * @return true se presente.
+         */
+        private boolean startsWithIdentifier(
+                @NonNull String identifier) {
+
+            skipSpaces();
+
+            int length =
+                    identifier.length();
+
+            if (position + length >
+                    expression.length()) {
+
+                return false;
+            }
+
+            return expression.regionMatches(
+                    true,
+                    position,
+                    identifier,
+                    0,
+                    length
+            );
+        }
+
+        /**
+         * Valuta una funzione signed16(A,B).
+         *
+         * Interpreta A e B come intero signed
+         * a 16 bit in formato big-endian.
+         *
+         * Esempio:
+         *
+         * signed16(A,B)
+         *
+         * @return valore signed.
+         */
+        private double parseSigned16Function() {
+
+            int start =
+                    position;
+
+            if (!matchIdentifier(
+                    "signed16")) {
+
+                position =
+                        start;
+
+                throw error(
+                        "Funzione signed16 attesa."
+                );
+            }
+
+            skipSpaces();
+
+            if (!match('(')) {
+
+                throw error(
+                        "Parentesi aperta attesa "
+                                + "dopo signed16."
+                );
+            }
+
+            skipSpaces();
+
+            if (position >=
+                    expression.length()
+                    ||
+                    Character.toUpperCase(
+                            expression.charAt(
+                                    position
+                            )
+                    ) != 'A') {
+
+                throw error(
+                        "signed16 richiede "
+                                + "il byte A."
+                );
+            }
+
+            position++;
+
+            skipSpaces();
+
+            if (!match(',')) {
+
+                throw error(
+                        "Virgola attesa "
+                                + "in signed16(A,B)."
+                );
+            }
+
+            skipSpaces();
+
+            if (position >=
+                    expression.length()
+                    ||
+                    Character.toUpperCase(
+                            expression.charAt(
+                                    position
+                            )
+                    ) != 'B') {
+
+                throw error(
+                        "signed16 richiede "
+                                + "il byte B."
+                );
+            }
+
+            position++;
+
+            skipSpaces();
+
+            if (!match(')')) {
+
+                throw error(
+                        "Parentesi chiusa attesa "
+                                + "dopo signed16(A,B)."
+                );
+            }
+
+            if (data.length < 2) {
+
+                throw error(
+                        "signed16 richiede "
+                                + "almeno 2 byte."
+                );
+            }
+
+            int high =
+                    unsignedByte(
+                            data[0]
+                    );
+
+            int low =
+                    unsignedByte(
+                            data[1]
+                    );
+
+            int value =
+                    (high << 8) | low;
+
+            if ((value & 0x8000) != 0) {
+
+                value -=
+                        0x10000;
+            }
+
+            return value;
+        }
+
+        /**
+         * Verifica la presenza di un identificatore
+         * e lo consuma.
+         *
+         * @param identifier identificatore.
+         *
+         * @return true se trovato.
+         */
+        private boolean matchIdentifier(
+                @NonNull String identifier) {
+
+            skipSpaces();
+
+            int length =
+                    identifier.length();
+
+            if (position + length >
+                    expression.length()) {
+
+                return false;
+            }
+
+            String candidate =
+                    expression.substring(
+                            position,
+                            position + length
+                    );
+
+            if (!identifier.equalsIgnoreCase(
+                    candidate)) {
+
+                return false;
+            }
+
+            position +=
+                    length;
+
+            return true;
         }
 
         /**
@@ -516,8 +811,8 @@ public class PidFormulaEvaluator {
         }
 
         /**
-         * Restituisce il valore del byte
-         * associato alla variabile.
+         * Restituisce il valore unsigned
+         * del byte associato alla variabile.
          *
          * A = data[0]
          * B = data[1]
@@ -549,6 +844,20 @@ public class PidFormulaEvaluator {
             return unsignedByte(
                     data[index]
             );
+        }
+
+        /**
+         * Converte un byte Java signed
+         * nel relativo valore unsigned.
+         *
+         * @param value byte.
+         *
+         * @return valore 0..255.
+         */
+        private int unsignedByte(
+                byte value) {
+
+            return value & 0xFF;
         }
 
         /**
@@ -617,4 +926,198 @@ public class PidFormulaEvaluator {
             );
         }
     }
+
+
+    /**
+     * Valuta un PID restituendo un risultato generico.
+     *
+     * I PID FORMULA e BITFIELD producono un risultato numerico.
+     * I PID MULTI_VALUE possono produrre più valori nominati.
+     *
+     * @param definition definizione PID.
+     * @param data byte ricevuti dall'ECU.
+     *
+     * @return risultato della decodifica.
+     */
+    @NonNull
+    public EvaluationResult evaluateResult(
+            @NonNull PidDefinition definition,
+            @NonNull byte[] data) {
+
+        String decoder =
+                definition.getDecoder();
+
+        if (decoder == null) {
+            throw new IllegalArgumentException(
+                    "Decoder non definito per PID "
+                            + definition.getPid()
+            );
+        }
+
+        String normalizedDecoder =
+                decoder.trim().toUpperCase(Locale.US);
+
+        switch (normalizedDecoder) {
+
+            case "FORMULA":
+            case "SIGNED_FORMULA":
+            case "BITFIELD":
+
+                return EvaluationResult.numeric(
+                        evaluate(definition, data)
+                );
+
+            case "MULTI_VALUE":
+
+                return evaluateMultiValue(
+                        definition,
+                        data
+                );
+
+            default:
+
+                throw new IllegalArgumentException(
+                        "Decoder non supportato da "
+                                + "PidFormulaEvaluator: "
+                                + decoder
+                                + " per PID "
+                                + definition.getPid()
+                );
+        }
+    }
+
+
+    /**
+     * Valuta una formula MULTI_VALUE.
+     *
+     * La formula nel JSON può contenere più espressioni
+     * separate da ';', ad esempio:
+     *
+     * voltage=A/200;trim=(B*100/128)-100
+     *
+     * oppure:
+     *
+     * lambda=((A*256)+B)*2/65536;voltage=((C*256)+D)*8/65536
+     *
+     * Ogni espressione deve avere la forma:
+     *
+     * nome=espressione
+     *
+     * @param definition definizione PID.
+     * @param data byte grezzi ricevuti dall'ECU.
+     *
+     * @return risultato contenente i valori nominati.
+     *
+     * @throws IllegalArgumentException formula non valida.
+     */
+    @NonNull
+    private EvaluationResult evaluateMultiValue(
+            @NonNull PidDefinition definition,
+            @NonNull byte[] data) {
+
+        String formula = definition.getFormula();
+
+        if (formula == null ||
+                formula.trim().isEmpty()) {
+
+            throw new IllegalArgumentException(
+                    "Formula MULTI_VALUE non definita per PID "
+                            + definition.getPid()
+            );
+        }
+
+        String[] expressions =
+                formula.split(";");
+
+        java.util.Map<String, Double> values =
+                new java.util.LinkedHashMap<>();
+
+        for (String expression :
+                expressions) {
+
+            String item =
+                    expression.trim();
+
+            if (item.isEmpty()) {
+                continue;
+            }
+
+            int separator =
+                    item.indexOf('=');
+
+            if (separator <= 0 ||
+                    separator >= item.length() - 1) {
+
+                throw new IllegalArgumentException(
+                        "Espressione MULTI_VALUE non valida "
+                                + "per PID "
+                                + definition.getPid()
+                                + ": "
+                                + item
+                );
+            }
+
+            String name =
+                    item.substring(
+                            0,
+                            separator
+                    ).trim();
+
+            String valueExpression =
+                    item.substring(
+                            separator + 1
+                    ).trim();
+
+            if (name.isEmpty()) {
+
+                throw new IllegalArgumentException(
+                        "Nome valore MULTI_VALUE vuoto "
+                                + "per PID "
+                                + definition.getPid()
+                );
+            }
+
+            if (valueExpression.isEmpty()) {
+
+                throw new IllegalArgumentException(
+                        "Espressione MULTI_VALUE vuota "
+                                + "per valore "
+                                + name
+                                + " del PID "
+                                + definition.getPid()
+                );
+            }
+
+            FormulaParser parser =
+                    new FormulaParser(
+                            valueExpression,
+                            data
+                    );
+
+            double value =
+                    parser.parse();
+
+            values.put(
+                    name,
+                    value
+            );
+        }
+
+        if (values.isEmpty()) {
+
+            throw new IllegalArgumentException(
+                    "Nessun valore MULTI_VALUE definito "
+                            + "per PID "
+                            + definition.getPid()
+            );
+        }
+
+        return EvaluationResult.multiValue(
+                values
+        );
+    }
+
+
+
+
 }
