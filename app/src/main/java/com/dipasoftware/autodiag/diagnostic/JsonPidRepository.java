@@ -23,10 +23,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-
-import java.io.File;
-import java.util.Arrays;
-
 /**
  * ------------------------------------------------------------
  *
@@ -38,46 +34,49 @@ import java.util.Arrays;
  *
  * Descrizione:
  *
- * Repository responsabile del caricamento del catalogo
- * standard OBD-II dai file JSON presenti nelle risorse
- * raw dell'applicazione.
+ * Repository responsabile del caricamento dei cataloghi
+ * PID diagnostici dell'applicazione.
+ *
+ * Supporta:
+ *
+ * - catalogo OBD-II standard;
+ * - dataset OEM;
+ * - dataset specifici per marca/modello/ECU;
+ * - caricamento da res/raw;
+ * - caricamento da assets.
  *
  * Il repository converte gli oggetti JSON in oggetti
- * PidDefinition.
+ * PidDefinition e PidDatasetDefinition.
  *
- * Il repository NON determina se un PID è supportato
- * dall'ECU attualmente collegata.
+ * Il repository NON determina se un PID è realmente
+ * supportato dall'ECU collegata.
  *
  * La presenza di un PID nel catalogo indica solamente
  * che il PID è conosciuto dall'applicazione.
  *
  * Il supporto reale dell'ECU viene determinato dalla
- * logica diagnostica tramite le bitmap dei PID supportati.
+ * logica diagnostica.
  *
  * ------------------------------------------------------------
  */
 public class JsonPidRepository {
 
     /**
-     * Tag utilizzato per identificare i messaggi di log
-     * prodotti dal repository.
+     * Tag utilizzato per i messaggi di log.
      */
     private static final String TAG =
             "JsonPidRepository";
 
     /**
-     * Context applicativo utilizzato per accedere
-     * alle risorse raw contenenti i cataloghi JSON.
+     * Context applicativo.
      */
     @NonNull
     private final Context context;
 
     /**
-     * Costruisce il repository utilizzando il Context
-     * dell'applicazione.
+     * Costruttore.
      *
-     * @param context context Android utilizzato per accedere
-     *                alle risorse dell'applicazione.
+     * @param context context Android.
      */
     public JsonPidRepository(
             @NonNull Context context) {
@@ -87,20 +86,16 @@ public class JsonPidRepository {
     }
 
     /**
-     * Carica il catalogo standard OBD-II dalla risorsa
-     * JSON principale dell'applicazione.
+     * Carica il catalogo standard OBD-II.
      *
      * La risorsa utilizzata è:
      *
      * res/raw/obd2_standard.json
      *
-     * @return lista immutabile delle definizioni PID.
+     * @return lista PID standard.
      *
-     * @throws IOException errore durante la lettura
-     *                     della risorsa.
-     *
-     * @throws JSONException JSON non valido o struttura
-     *                       del catalogo non corretta.
+     * @throws IOException errore di lettura.
+     * @throws JSONException JSON non valido.
      */
     @NonNull
     public List<PidDefinition> loadStandardPids()
@@ -114,7 +109,7 @@ public class JsonPidRepository {
     /**
      * Carica un catalogo PID da una risorsa raw.
      *
-     * La struttura JSON attesa è:
+     * La risorsa contiene una struttura JSON del tipo:
      *
      * {
      *     "version": "...",
@@ -126,15 +121,15 @@ public class JsonPidRepository {
      *     ]
      * }
      *
-     * @param resourceId identificatore della risorsa raw
-     *                   contenente il catalogo JSON.
+     * I PID caricati da questa funzione sono considerati
+     * STANDARD salvo indicazione esplicita nel singolo PID.
      *
-     * @return lista immutabile delle definizioni PID.
+     * @param resourceId identificatore risorsa.
      *
-     * @throws IOException errore durante la lettura
-     *                     della risorsa.
+     * @return lista PID.
      *
-     * @throws JSONException JSON non valido o PID non valido.
+     * @throws IOException errore di lettura.
+     * @throws JSONException JSON non valido.
      */
     @NonNull
     public List<PidDefinition> loadFromResource(
@@ -164,6 +159,24 @@ public class JsonPidRepository {
             );
         }
 
+        /*
+         * Il catalogo caricato da res/raw è il catalogo
+         * standard OBD-II.
+         */
+        String defaultSource =
+                root.optString(
+                                "source",
+                                "STANDARD"
+                        )
+                        .trim()
+                        .toUpperCase(Locale.US);
+
+        if (defaultSource.isEmpty()) {
+
+            defaultSource =
+                    "STANDARD";
+        }
+
         List<PidDefinition> definitions =
                 new ArrayList<>();
 
@@ -186,9 +199,14 @@ public class JsonPidRepository {
             }
 
             PidDefinition definition =
-                    parsePid(pidObject);
+                    parsePid(
+                            pidObject,
+                            defaultSource
+                    );
 
-            definitions.add(definition);
+            definitions.add(
+                    definition
+            );
         }
 
         return Collections.unmodifiableList(
@@ -197,10 +215,12 @@ public class JsonPidRepository {
     }
 
     /**
-     * Converte un singolo JSONObject contenente la
-     * definizione di un PID in un oggetto PidDefinition.
+     * Converte un singolo JSONObject in PidDefinition.
      *
-     * I campi letti dal JSON sono:
+     * Il source viene ricavato dal campo del PID se presente.
+     * In caso contrario viene utilizzato defaultSource.
+     *
+     * Campi supportati:
      *
      * pid
      * nameKey
@@ -211,23 +231,24 @@ public class JsonPidRepository {
      * bytes
      * mode
      * dataType
+     * source
+     * signed
+     * endianness
+     * byteOffset
+     * bitOffset
+     * bitLength
      *
-     * Il campo "available", se presente nel JSON,
-     * viene volutamente ignorato perché la disponibilità
-     * reale del PID dipende dall'ECU collegata e non dal
-     * catalogo standard.
+     * @param object oggetto JSON PID.
+     * @param defaultSource source predefinito del dataset.
      *
-     * @param object oggetto JSON contenente la definizione
-     *               del PID.
+     * @return definizione PID.
      *
-     * @return definizione PID convertita dal JSON.
-     *
-     * @throws JSONException dati obbligatori mancanti
-     *                       o non validi.
+     * @throws JSONException dati non validi.
      */
     @NonNull
     private PidDefinition parsePid(
-            @NonNull JSONObject object)
+            @NonNull JSONObject object,
+            @NonNull String defaultSource)
             throws JSONException {
 
         String pid =
@@ -284,13 +305,74 @@ public class JsonPidRepository {
                         "dataType"
                 );
 
-
+        /*
+         * Se il PID specifica esplicitamente source,
+         * questo prevale sul source del dataset.
+         *
+         * Altrimenti viene utilizzato il source del dataset.
+         */
         String source =
                 object.optString(
-                        "source",
-                        "STANDARD"
-                ).trim().toUpperCase(Locale.US);
+                                "source",
+                                defaultSource
+                        )
+                        .trim()
+                        .toUpperCase(Locale.US);
 
+        if (source.isEmpty()) {
+
+            source =
+                    defaultSource
+                            .trim()
+                            .toUpperCase(Locale.US);
+        }
+
+        /*
+         * Nuovi metadati di decoding.
+         *
+         * Default compatibili con i PID standard esistenti.
+         */
+        boolean signed =
+                object.optBoolean(
+                        "signed",
+                        false
+                );
+
+        String endianness =
+                object.optString(
+                                "endianness",
+                                "BIG_ENDIAN"
+                        )
+                        .trim()
+                        .toUpperCase(Locale.US);
+
+        if (endianness.isEmpty()) {
+
+            endianness =
+                    "BIG_ENDIAN";
+        }
+
+        int byteOffset =
+                object.optInt(
+                        "byteOffset",
+                        0
+                );
+
+        int bitOffset =
+                object.optInt(
+                        "bitOffset",
+                        0
+                );
+
+        int bitLength =
+                object.optInt(
+                        "bitLength",
+                        0
+                );
+
+        /*
+         * Validazione dei dati numerici.
+         */
         if (bytes < 0) {
 
             throw new JSONException(
@@ -299,15 +381,53 @@ public class JsonPidRepository {
             );
         }
 
-        /*
-         * Il campo "available" eventualmente presente
-         * nel JSON non viene utilizzato.
-         *
-         * La disponibilità del PID viene determinata
-         * successivamente tramite le bitmap restituite
-         * dalla ECU.
-         */
+        if (byteOffset < 0) {
 
+            throw new JSONException(
+                    "byteOffset non valido per PID "
+                            + pid
+            );
+        }
+
+        if (bitOffset < 0) {
+
+            throw new JSONException(
+                    "bitOffset non valido per PID "
+                            + pid
+            );
+        }
+
+        if (bitLength < 0) {
+
+            throw new JSONException(
+                    "bitLength non valido per PID "
+                            + pid
+            );
+        }
+
+        /*
+         * Validazione dell'endianness.
+         */
+        if (!"BIG_ENDIAN".equals(
+                endianness)
+                &&
+                !"LITTLE_ENDIAN".equals(
+                        endianness)) {
+
+            throw new JSONException(
+                    "Endianness non supportato per PID "
+                            + pid
+                            + ": "
+                            + endianness
+            );
+        }
+
+        /*
+         * Il campo "available", eventualmente presente
+         * nel JSON, viene volutamente ignorato.
+         *
+         * La disponibilità reale dipende dall'ECU.
+         */
         return new PidDefinition(
                 pid,
                 nameKey,
@@ -318,24 +438,47 @@ public class JsonPidRepository {
                 bytes,
                 mode,
                 dataType,
-                source
+                source,
+                signed,
+                endianness,
+                byteOffset,
+                bitOffset,
+                bitLength
         );
     }
 
     /**
-     * Restituisce una stringa obbligatoria contenuta
-     * nell'oggetto JSON.
+     * Versione semplificata di parsePid.
      *
-     * Il metodo verifica sia la presenza del campo
-     * sia che il valore non sia vuoto.
+     * Mantiene il comportamento utilizzato internamente
+     * dal catalogo standard.
      *
-     * @param object oggetto JSON da cui leggere il valore.
+     * @param object oggetto JSON.
      *
-     * @param key nome del campo obbligatorio.
+     * @return definizione PID.
      *
-     * @return valore testuale normalizzato.
+     * @throws JSONException JSON non valido.
+     */
+    @NonNull
+    private PidDefinition parsePid(
+            @NonNull JSONObject object)
+            throws JSONException {
+
+        return parsePid(
+                object,
+                "STANDARD"
+        );
+    }
+
+    /**
+     * Restituisce una stringa obbligatoria.
      *
-     * @throws JSONException campo assente o vuoto.
+     * @param object oggetto JSON.
+     * @param key nome campo.
+     *
+     * @return valore.
+     *
+     * @throws JSONException campo mancante o vuoto.
      */
     @NonNull
     private String requireString(
@@ -369,19 +512,13 @@ public class JsonPidRepository {
     }
 
     /**
-     * Legge completamente il contenuto testuale di
-     * una risorsa raw.
+     * Legge una risorsa raw completamente.
      *
-     * La lettura viene effettuata utilizzando UTF-8,
-     * coerentemente con il formato dei file JSON
-     * dell'applicazione.
+     * @param resourceId identificatore risorsa.
      *
-     * @param resourceId identificatore della risorsa raw.
+     * @return contenuto UTF-8.
      *
-     * @return contenuto testuale della risorsa.
-     *
-     * @throws IOException errore durante l'apertura
-     *                     o la lettura della risorsa.
+     * @throws IOException errore lettura.
      */
     @NonNull
     private String readResource(
@@ -391,34 +528,44 @@ public class JsonPidRepository {
         Resources resources =
                 context.getResources();
 
-        try (InputStream inputStream =
-                     resources.openRawResource(
-                             resourceId
-                     );
+        try (
+                InputStream inputStream =
+                        resources.openRawResource(
+                                resourceId
+                        );
 
-             BufferedReader reader =
-                     new BufferedReader(
-                             new InputStreamReader(
-                                     inputStream,
-                                     StandardCharsets.UTF_8
-                             )
-                     )) {
+                BufferedReader reader =
+                        new BufferedReader(
+                                new InputStreamReader(
+                                        inputStream,
+                                        StandardCharsets.UTF_8
+                                )
+                        )
+        ) {
 
             StringBuilder content =
                     new StringBuilder();
 
             String line;
 
-            while ((line = reader.readLine())
-                    != null) {
+            while (
+                    (line = reader.readLine())
+                            != null
+            ) {
 
-                content.append(line);
-                content.append('\n');
+                content.append(
+                        line
+                );
+
+                content.append(
+                        '\n'
+                );
             }
 
             return content.toString();
 
-        } catch (Resources.NotFoundException exception) {
+        } catch (
+                Resources.NotFoundException exception) {
 
             throw new IOException(
                     "Risorsa JSON non trovata: "
@@ -429,27 +576,14 @@ public class JsonPidRepository {
     }
 
     /**
-     * Cerca una definizione PID nel catalogo standard
-     * utilizzando il codice PID completo.
+     * Cerca una definizione PID nel catalogo standard.
      *
-     * Esempi:
+     * @param pid codice PID.
      *
-     * 010C
-     * 0105
-     * 010D
+     * @return definizione oppure null.
      *
-     * Il confronto è case-insensitive e viene eseguito
-     * dopo la normalizzazione del codice.
-     *
-     * @param pid codice PID completo da cercare.
-     *
-     * @return definizione trovata oppure null se il PID
-     *         non appartiene al catalogo.
-     *
-     * @throws JSONException errore nel parsing del JSON.
-     *
-     * @throws IOException errore durante la lettura
-     *                     del catalogo.
+     * @throws JSONException JSON non valido.
+     * @throws IOException errore lettura.
      */
     @Nullable
     public PidDefinition findByPid(
@@ -460,17 +594,22 @@ public class JsonPidRepository {
                 loadStandardPids();
 
         String normalizedPid =
-                pid.trim().toUpperCase(Locale.US);
+                pid.trim()
+                        .toUpperCase(Locale.US);
 
-        for (PidDefinition definition :
-                definitions) {
+        for (
+                PidDefinition definition :
+                definitions
+        ) {
 
             String definitionPid =
                     definition.getPid()
                             .trim()
                             .toUpperCase(Locale.US);
 
-            if (definitionPid.equals(normalizedPid)) {
+            if (definitionPid.equals(
+                    normalizedPid
+            )) {
 
                 return definition;
             }
@@ -480,24 +619,13 @@ public class JsonPidRepository {
     }
 
     /**
-     * Carica il catalogo standard PID e lo converte
-     * in una mappa indicizzata dal codice PID.
+     * Carica il catalogo standard e crea una mappa
+     * indicizzata per PID.
      *
-     * La mappa permette di ottenere rapidamente una
-     * PidDefinition partendo dal codice PID completo.
+     * @return mappa PID -> definizione.
      *
-     * Esempio:
-     *
-     * 010C -> PidDefinition del PID RPM
-     *
-     * 0105 -> PidDefinition temperatura liquido
-     *
-     * @return mappa PID -> definizione PID.
-     *
-     * @throws JSONException errore nel parsing del JSON.
-     *
-     * @throws IOException errore durante la lettura
-     *                     del catalogo.
+     * @throws JSONException JSON non valido.
+     * @throws IOException errore lettura.
      */
     @NonNull
     public Map<String, PidDefinition> loadStandardPidMap()
@@ -509,8 +637,10 @@ public class JsonPidRepository {
         Map<String, PidDefinition> map =
                 new HashMap<>();
 
-        for (PidDefinition definition :
-                definitions) {
+        for (
+                PidDefinition definition :
+                definitions
+        ) {
 
             String pid =
                     definition.getPid()
@@ -528,34 +658,31 @@ public class JsonPidRepository {
         );
     }
 
-
-
     /**
-     * Carica un intero dataset diagnostico dalla risorsa JSON.
+     * Carica un intero dataset diagnostico da JSON.
      *
-     * Il dataset contiene sia i metadati del catalogo sia
-     * l'elenco dei PidDefinition.
-     *
-     * Struttura attesa:
+     * Struttura prevista:
      *
      * {
      *   "version": "...",
-     *   "source": "...",
+     *   "source": "OEM",
      *   "manufacturer": "...",
      *   "brand": "...",
      *   "model": "...",
      *   "ecu": "...",
      *   "protocol": "...",
-     *   "pids": [
-     *      ...
-     *   ]
+     *   "pids": [...]
      * }
      *
-     * @param resourceId identificatore della risorsa raw.
+     * Il source del dataset viene utilizzato come
+     * source predefinito per tutti i PID che non
+     * lo specificano individualmente.
      *
-     * @return dataset diagnostico.
+     * @param resourceId risorsa raw.
      *
-     * @throws IOException errore durante la lettura.
+     * @return dataset.
+     *
+     * @throws IOException errore lettura.
      * @throws JSONException JSON non valido.
      */
     @NonNull
@@ -564,7 +691,9 @@ public class JsonPidRepository {
             throws IOException, JSONException {
 
         String json =
-                readResource(resourceId);
+                readResource(
+                        resourceId
+                );
 
         if (json.trim().isEmpty()) {
 
@@ -576,9 +705,6 @@ public class JsonPidRepository {
         JSONObject root =
                 new JSONObject(json);
 
-        /*
-         * Metadati del dataset.
-         */
         String version =
                 root.optString(
                         "version",
@@ -587,11 +713,17 @@ public class JsonPidRepository {
 
         String source =
                 root.optString(
-                        "source",
-                        "STANDARD"
-                ).trim().toUpperCase(
-                        Locale.US
-                );
+                                "source",
+                                "STANDARD"
+                        )
+                        .trim()
+                        .toUpperCase(Locale.US);
+
+        if (source.isEmpty()) {
+
+            source =
+                    "STANDARD";
+        }
 
         String manufacturer =
                 root.optString(
@@ -623,9 +755,6 @@ public class JsonPidRepository {
                         ""
                 ).trim();
 
-        /*
-         * L'elenco dei PID deve essere presente.
-         */
         JSONArray pids =
                 root.optJSONArray(
                         "pids"
@@ -642,12 +771,11 @@ public class JsonPidRepository {
         List<PidDefinition> definitions =
                 new ArrayList<>();
 
-        /*
-         * Conversione dei singoli PID.
-         */
-        for (int i = 0;
-             i < pids.length();
-             i++) {
+        for (
+                int i = 0;
+                i < pids.length();
+                i++
+        ) {
 
             JSONObject pidObject =
                     pids.optJSONObject(i);
@@ -666,7 +794,8 @@ public class JsonPidRepository {
 
             PidDefinition definition =
                     parsePid(
-                            pidObject
+                            pidObject,
+                            source
                     );
 
             definitions.add(
@@ -686,14 +815,12 @@ public class JsonPidRepository {
         );
     }
 
-
-
     /**
      * Carica il dataset standard OBD-II completo.
      *
      * @return dataset standard.
      *
-     * @throws IOException errore di lettura.
+     * @throws IOException errore lettura.
      * @throws JSONException JSON non valido.
      */
     @NonNull
@@ -705,15 +832,21 @@ public class JsonPidRepository {
         );
     }
 
-
     /**
      * Carica un dataset JSON da assets.
      *
-     * @param assetPath percorso relativo all'interno di assets.
+     * Esempio:
+     *
+     * assets/pids/fiat/...
+     *
+     * Il source root del dataset viene propagato
+     * ai singoli PID che non lo specificano.
+     *
+     * @param assetPath percorso asset.
      *
      * @return dataset diagnostico.
      *
-     * @throws IOException errore durante la lettura.
+     * @throws IOException errore lettura.
      * @throws JSONException JSON non valido.
      */
     @NonNull
@@ -745,11 +878,17 @@ public class JsonPidRepository {
 
         String source =
                 root.optString(
-                        "source",
-                        "OEM"
-                ).trim().toUpperCase(
-                        Locale.US
-                );
+                                "source",
+                                "OEM"
+                        )
+                        .trim()
+                        .toUpperCase(Locale.US);
+
+        if (source.isEmpty()) {
+
+            source =
+                    "OEM";
+        }
 
         String manufacturer =
                 root.optString(
@@ -797,9 +936,11 @@ public class JsonPidRepository {
         List<PidDefinition> definitions =
                 new ArrayList<>();
 
-        for (int i = 0;
-             i < pids.length();
-             i++) {
+        for (
+                int i = 0;
+                i < pids.length();
+                i++
+        ) {
 
             JSONObject pidObject =
                     pids.optJSONObject(i);
@@ -819,7 +960,8 @@ public class JsonPidRepository {
 
             PidDefinition definition =
                     parsePid(
-                            pidObject
+                            pidObject,
+                            source
                     );
 
             definitions.add(
@@ -839,8 +981,6 @@ public class JsonPidRepository {
         );
     }
 
-
-
     /**
      * Legge completamente un file presente negli assets.
      *
@@ -848,7 +988,7 @@ public class JsonPidRepository {
      *
      * @return contenuto UTF-8.
      *
-     * @throws IOException errore di lettura.
+     * @throws IOException errore lettura.
      */
     @NonNull
     private String readAsset(
@@ -880,13 +1020,19 @@ public class JsonPidRepository {
                             != null
             ) {
 
-                content.append(line);
-                content.append('\n');
+                content.append(
+                        line
+                );
+
+                content.append(
+                        '\n'
+                );
             }
 
             return content.toString();
 
-        } catch (IOException exception) {
+        } catch (
+                IOException exception) {
 
             throw new IOException(
                     "Asset JSON non trovato o "
@@ -897,17 +1043,15 @@ public class JsonPidRepository {
         }
     }
 
-
-
     /**
      * Carica il dataset OEM di test.
      *
-     * Serve esclusivamente per verificare
-     * il caricamento dei dataset dagli assets.
+     * Serve per verificare il caricamento
+     * dei dataset dagli assets.
      *
      * @return dataset OEM di test.
      *
-     * @throws IOException errore di lettura.
+     * @throws IOException errore lettura.
      * @throws JSONException JSON non valido.
      */
     @NonNull
@@ -918,5 +1062,4 @@ public class JsonPidRepository {
                 "pids/test/test_dataset.json"
         );
     }
-
 }
