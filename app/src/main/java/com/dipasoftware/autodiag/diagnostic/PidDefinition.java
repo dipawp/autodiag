@@ -26,19 +26,19 @@ import androidx.annotation.NonNull;
  *
  * Esempio standard:
  *
- *     PID 010C
+ * PID 010C
  *
- *     mode = 01
- *     decoder = FORMULA
- *     formula = ((A*256)+B)/4
+ * mode = 01
+ * decoder = FORMULA
+ * formula = ((A*256)+B)/4
  *
  * Esempio OEM:
  *
- *     PID 221234
+ * PID 221234
  *
- *     mode = 22
- *     decoder = FORMULA
- *     formula = ((A*256)+B)/10
+ * mode = 22
+ * decoder = FORMULA
+ * formula = ((A*256)+B)/10
  *
  * IMPORTANTE:
  *
@@ -123,6 +123,7 @@ public class PidDefinition {
      * 01
      * 03
      * 09
+     * 21
      * 22
      */
     @NonNull
@@ -159,7 +160,61 @@ public class PidDefinition {
     private final String source;
 
     /**
+     * Indica se il valore numerico deve essere interpretato
+     * come signed.
+     *
+     * Per i PID standard esistenti il valore predefinito
+     * è false.
+     */
+    private final boolean signed;
+
+    /**
+     * Ordine dei byte utilizzato per l'interpretazione
+     * del valore.
+     *
+     * Valori previsti:
+     *
+     * BIG_ENDIAN
+     * LITTLE_ENDIAN
+     *
+     * Per i PID esistenti il valore predefinito è BIG_ENDIAN.
+     */
+    @NonNull
+    private final String endianness;
+
+    /**
+     * Offset del primo byte utilizzato dal decoder.
+     *
+     * Normalmente 0.
+     *
+     * È utile per dataset OEM nei quali la risposta contiene
+     * più campi e il valore del PID non inizia dal primo byte.
+     */
+    private final int byteOffset;
+
+    /**
+     * Posizione del primo bit utilizzato dal decoder.
+     *
+     * Il bit 0 rappresenta il bit meno significativo.
+     */
+    private final int bitOffset;
+
+    /**
+     * Numero di bit utilizzati dal decoder.
+     *
+     * Valore 0 significa che non è stato definito
+     * un campo bitfield esplicito.
+     */
+    private final int bitLength;
+
+    /**
      * Costruttore completo.
+     *
+     * Questo costruttore mantiene la firma utilizzata
+     * dal repository JSON attuale.
+     *
+     * I nuovi parametri di decoding avanzato assumono
+     * i valori predefiniti compatibili con i PID esistenti.
      *
      * @param pid identificatore PID.
      * @param nameKey chiave localizzazione nome.
@@ -183,6 +238,62 @@ public class PidDefinition {
             @NonNull String mode,
             @NonNull String dataType,
             @NonNull String source) {
+
+        this(
+                pid,
+                nameKey,
+                descriptionKey,
+                unit,
+                decoder,
+                formula,
+                bytes,
+                mode,
+                dataType,
+                source,
+                false,
+                "BIG_ENDIAN",
+                0,
+                0,
+                0
+        );
+    }
+
+    /**
+     * Costruttore avanzato per PID che richiedono
+     * informazioni aggiuntive di decoding.
+     *
+     * @param pid identificatore PID.
+     * @param nameKey chiave localizzazione nome.
+     * @param descriptionKey chiave localizzazione descrizione.
+     * @param unit unità di misura.
+     * @param decoder decoder.
+     * @param formula formula.
+     * @param bytes numero byte.
+     * @param mode modalità diagnostica.
+     * @param dataType tipo dato.
+     * @param source origine del PID.
+     * @param signed valore signed.
+     * @param endianness ordine byte.
+     * @param byteOffset offset byte.
+     * @param bitOffset offset bit.
+     * @param bitLength lunghezza campo bit.
+     */
+    public PidDefinition(
+            @NonNull String pid,
+            @NonNull String nameKey,
+            @NonNull String descriptionKey,
+            @NonNull String unit,
+            @NonNull String decoder,
+            @NonNull String formula,
+            int bytes,
+            @NonNull String mode,
+            @NonNull String dataType,
+            @NonNull String source,
+            boolean signed,
+            @NonNull String endianness,
+            int byteOffset,
+            int bitOffset,
+            int bitLength) {
 
         this.pid =
                 pid.trim();
@@ -213,6 +324,62 @@ public class PidDefinition {
 
         this.source =
                 source.trim().toUpperCase();
+
+        this.signed =
+                signed;
+
+        String normalizedEndianness =
+                endianness.trim().toUpperCase();
+
+        if (!"BIG_ENDIAN".equals(
+                normalizedEndianness)
+                &&
+                !"LITTLE_ENDIAN".equals(
+                        normalizedEndianness)) {
+
+            throw new IllegalArgumentException(
+                    "Endianness non supportato: "
+                            + endianness
+                            + ". Valori ammessi: "
+                            + "BIG_ENDIAN, LITTLE_ENDIAN."
+            );
+        }
+
+        this.endianness =
+                normalizedEndianness;
+
+        if (byteOffset < 0) {
+
+            throw new IllegalArgumentException(
+                    "byteOffset non può essere negativo: "
+                            + byteOffset
+            );
+        }
+
+        if (bitOffset < 0) {
+
+            throw new IllegalArgumentException(
+                    "bitOffset non può essere negativo: "
+                            + bitOffset
+            );
+        }
+
+        if (bitLength < 0) {
+
+            throw new IllegalArgumentException(
+                    "bitLength non può essere negativo: "
+                            + bitLength
+            );
+        }
+
+        this.byteOffset =
+                byteOffset;
+
+        this.bitOffset =
+                bitOffset;
+
+        this.bitLength =
+                bitLength;
     }
 
     /**
@@ -393,6 +560,57 @@ public class PidDefinition {
     }
 
     /**
+     * Indica se il valore numerico è signed.
+     *
+     * @return true se signed.
+     */
+    public boolean isSigned() {
+
+        return signed;
+    }
+
+    /**
+     * Restituisce l'ordine dei byte.
+     *
+     * @return BIG_ENDIAN oppure LITTLE_ENDIAN.
+     */
+    @NonNull
+    public String getEndianness() {
+
+        return endianness;
+    }
+
+    /**
+     * Restituisce l'offset del primo byte.
+     *
+     * @return offset byte.
+     */
+    public int getByteOffset() {
+
+        return byteOffset;
+    }
+
+    /**
+     * Restituisce l'offset del primo bit.
+     *
+     * @return offset bit.
+     */
+    public int getBitOffset() {
+
+        return bitOffset;
+    }
+
+    /**
+     * Restituisce la lunghezza del campo in bit.
+     *
+     * @return numero di bit.
+     */
+    public int getBitLength() {
+
+        return bitLength;
+    }
+
+    /**
      * Rappresentazione testuale della definizione.
      *
      * @return stringa descrittiva.
@@ -402,46 +620,46 @@ public class PidDefinition {
     public String toString() {
 
         return "PidDefinition{" +
-
                 "pid='" +
                 pid +
                 '\'' +
-
                 ", nameKey='" +
                 nameKey +
                 '\'' +
-
                 ", descriptionKey='" +
                 descriptionKey +
                 '\'' +
-
                 ", unit='" +
                 unit +
                 '\'' +
-
                 ", decoder='" +
                 decoder +
                 '\'' +
-
                 ", formula='" +
                 formula +
                 '\'' +
-
                 ", bytes=" +
                 bytes +
-
                 ", mode='" +
                 mode +
                 '\'' +
-
                 ", dataType='" +
                 dataType +
                 '\'' +
-
                 ", source='" +
                 source +
                 '\'' +
-
+                ", signed=" +
+                signed +
+                ", endianness='" +
+                endianness +
+                '\'' +
+                ", byteOffset=" +
+                byteOffset +
+                ", bitOffset=" +
+                bitOffset +
+                ", bitLength=" +
+                bitLength +
                 '}';
     }
 }

@@ -27,7 +27,7 @@ public class ProfileLoaderTest {
         ProfileLoader loader = new ProfileLoader(context);
 
         String json = loader.loadAssetAsString(
-                "profiles/test/profile.json"
+                "pids/test/profile.json"
         );
 
         assertNotNull(json);
@@ -51,7 +51,7 @@ public class ProfileLoaderTest {
                 new ProfileLoader(context);
 
         ProfileDto profile = loader.loadProfile(
-                "profiles/test/profile.json"
+                "pids/test/profile.json"
         );
 
         assertNotNull(profile);

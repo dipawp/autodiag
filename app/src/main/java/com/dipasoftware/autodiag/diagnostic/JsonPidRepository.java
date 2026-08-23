@@ -23,6 +23,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+
+import java.io.File;
+import java.util.Arrays;
+
 /**
  * ------------------------------------------------------------
  *
@@ -523,4 +527,396 @@ public class JsonPidRepository {
                 map
         );
     }
+
+
+
+    /**
+     * Carica un intero dataset diagnostico dalla risorsa JSON.
+     *
+     * Il dataset contiene sia i metadati del catalogo sia
+     * l'elenco dei PidDefinition.
+     *
+     * Struttura attesa:
+     *
+     * {
+     *   "version": "...",
+     *   "source": "...",
+     *   "manufacturer": "...",
+     *   "brand": "...",
+     *   "model": "...",
+     *   "ecu": "...",
+     *   "protocol": "...",
+     *   "pids": [
+     *      ...
+     *   ]
+     * }
+     *
+     * @param resourceId identificatore della risorsa raw.
+     *
+     * @return dataset diagnostico.
+     *
+     * @throws IOException errore durante la lettura.
+     * @throws JSONException JSON non valido.
+     */
+    @NonNull
+    public PidDatasetDefinition loadDataset(
+            int resourceId)
+            throws IOException, JSONException {
+
+        String json =
+                readResource(resourceId);
+
+        if (json.trim().isEmpty()) {
+
+            throw new IOException(
+                    "Il file JSON del dataset è vuoto."
+            );
+        }
+
+        JSONObject root =
+                new JSONObject(json);
+
+        /*
+         * Metadati del dataset.
+         */
+        String version =
+                root.optString(
+                        "version",
+                        "1.0"
+                ).trim();
+
+        String source =
+                root.optString(
+                        "source",
+                        "STANDARD"
+                ).trim().toUpperCase(
+                        Locale.US
+                );
+
+        String manufacturer =
+                root.optString(
+                        "manufacturer",
+                        ""
+                ).trim();
+
+        String brand =
+                root.optString(
+                        "brand",
+                        ""
+                ).trim();
+
+        String model =
+                root.optString(
+                        "model",
+                        ""
+                ).trim();
+
+        String ecu =
+                root.optString(
+                        "ecu",
+                        ""
+                ).trim();
+
+        String protocol =
+                root.optString(
+                        "protocol",
+                        ""
+                ).trim();
+
+        /*
+         * L'elenco dei PID deve essere presente.
+         */
+        JSONArray pids =
+                root.optJSONArray(
+                        "pids"
+                );
+
+        if (pids == null) {
+
+            throw new JSONException(
+                    "Campo 'pids' assente "
+                            + "nel dataset JSON."
+            );
+        }
+
+        List<PidDefinition> definitions =
+                new ArrayList<>();
+
+        /*
+         * Conversione dei singoli PID.
+         */
+        for (int i = 0;
+             i < pids.length();
+             i++) {
+
+            JSONObject pidObject =
+                    pids.optJSONObject(i);
+
+            if (pidObject == null) {
+
+                Log.w(
+                        TAG,
+                        "Elemento PID non valido "
+                                + "alla posizione "
+                                + i
+                );
+
+                continue;
+            }
+
+            PidDefinition definition =
+                    parsePid(
+                            pidObject
+                    );
+
+            definitions.add(
+                    definition
+            );
+        }
+
+        return new PidDatasetDefinition(
+                version,
+                source,
+                manufacturer,
+                brand,
+                model,
+                ecu,
+                protocol,
+                definitions
+        );
+    }
+
+
+
+    /**
+     * Carica il dataset standard OBD-II completo.
+     *
+     * @return dataset standard.
+     *
+     * @throws IOException errore di lettura.
+     * @throws JSONException JSON non valido.
+     */
+    @NonNull
+    public PidDatasetDefinition loadStandardDataset()
+            throws IOException, JSONException {
+
+        return loadDataset(
+                com.dipasoftware.autodiag.R.raw.obd2_standard
+        );
+    }
+
+
+    /**
+     * Carica un dataset JSON da assets.
+     *
+     * @param assetPath percorso relativo all'interno di assets.
+     *
+     * @return dataset diagnostico.
+     *
+     * @throws IOException errore durante la lettura.
+     * @throws JSONException JSON non valido.
+     */
+    @NonNull
+    public PidDatasetDefinition loadDatasetFromAsset(
+            @NonNull String assetPath)
+            throws IOException, JSONException {
+
+        String json =
+                readAsset(
+                        assetPath
+                );
+
+        if (json.trim().isEmpty()) {
+
+            throw new IOException(
+                    "Il file JSON del dataset è vuoto: "
+                            + assetPath
+            );
+        }
+
+        JSONObject root =
+                new JSONObject(json);
+
+        String version =
+                root.optString(
+                        "version",
+                        "1.0"
+                ).trim();
+
+        String source =
+                root.optString(
+                        "source",
+                        "OEM"
+                ).trim().toUpperCase(
+                        Locale.US
+                );
+
+        String manufacturer =
+                root.optString(
+                        "manufacturer",
+                        ""
+                ).trim();
+
+        String brand =
+                root.optString(
+                        "brand",
+                        ""
+                ).trim();
+
+        String model =
+                root.optString(
+                        "model",
+                        ""
+                ).trim();
+
+        String ecu =
+                root.optString(
+                        "ecu",
+                        ""
+                ).trim();
+
+        String protocol =
+                root.optString(
+                        "protocol",
+                        ""
+                ).trim();
+
+        JSONArray pids =
+                root.optJSONArray(
+                        "pids"
+                );
+
+        if (pids == null) {
+
+            throw new JSONException(
+                    "Campo 'pids' assente nel dataset: "
+                            + assetPath
+            );
+        }
+
+        List<PidDefinition> definitions =
+                new ArrayList<>();
+
+        for (int i = 0;
+             i < pids.length();
+             i++) {
+
+            JSONObject pidObject =
+                    pids.optJSONObject(i);
+
+            if (pidObject == null) {
+
+                Log.w(
+                        TAG,
+                        "PID non valido nel dataset "
+                                + assetPath
+                                + " alla posizione "
+                                + i
+                );
+
+                continue;
+            }
+
+            PidDefinition definition =
+                    parsePid(
+                            pidObject
+                    );
+
+            definitions.add(
+                    definition
+            );
+        }
+
+        return new PidDatasetDefinition(
+                version,
+                source,
+                manufacturer,
+                brand,
+                model,
+                ecu,
+                protocol,
+                definitions
+        );
+    }
+
+
+
+    /**
+     * Legge completamente un file presente negli assets.
+     *
+     * @param assetPath percorso relativo.
+     *
+     * @return contenuto UTF-8.
+     *
+     * @throws IOException errore di lettura.
+     */
+    @NonNull
+    private String readAsset(
+            @NonNull String assetPath)
+            throws IOException {
+
+        try (
+                InputStream inputStream =
+                        context.getAssets().open(
+                                assetPath
+                        );
+
+                BufferedReader reader =
+                        new BufferedReader(
+                                new InputStreamReader(
+                                        inputStream,
+                                        StandardCharsets.UTF_8
+                                )
+                        )
+        ) {
+
+            StringBuilder content =
+                    new StringBuilder();
+
+            String line;
+
+            while (
+                    (line = reader.readLine())
+                            != null
+            ) {
+
+                content.append(line);
+                content.append('\n');
+            }
+
+            return content.toString();
+
+        } catch (IOException exception) {
+
+            throw new IOException(
+                    "Asset JSON non trovato o "
+                            + "non leggibile: "
+                            + assetPath,
+                    exception
+            );
+        }
+    }
+
+
+
+    /**
+     * Carica il dataset OEM di test.
+     *
+     * Serve esclusivamente per verificare
+     * il caricamento dei dataset dagli assets.
+     *
+     * @return dataset OEM di test.
+     *
+     * @throws IOException errore di lettura.
+     * @throws JSONException JSON non valido.
+     */
+    @NonNull
+    public PidDatasetDefinition loadTestOemDataset()
+            throws IOException, JSONException {
+
+        return loadDatasetFromAsset(
+                "pids/test/test_dataset.json"
+        );
+    }
+
 }

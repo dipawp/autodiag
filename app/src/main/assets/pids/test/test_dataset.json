@@ -1,0 +1,23 @@
+{
+  "version": "1.0",
+  "source": "OEM",
+  "manufacturer": "TEST",
+  "brand": "TEST",
+  "model": "TEST",
+  "ecu": "TEST_ECU",
+  "protocol": "CAN",
+  "pids": [
+    {
+      "pid": "22TEST",
+      "nameKey": "pid_test",
+      "descriptionKey": "pid_test_description",
+      "unit": "%",
+      "decoder": "FORMULA",
+      "formula": "A*100/255",
+      "bytes": 1,
+      "mode": "22",
+      "dataType": "PERCENT",
+      "source": "OEM"
+    }
+  ]
+}
