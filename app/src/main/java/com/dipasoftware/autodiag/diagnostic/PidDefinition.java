@@ -15,37 +15,41 @@ import androidx.annotation.NonNull;
  *
  * Rappresenta la definizione di un singolo PID diagnostico.
  *
- * La definizione viene caricata dal catalogo JSON dello standard OBD-II.
+ * La definizione descrive come una risposta diagnostica deve essere
+ * interpretata, ma non contiene la logica vera e propria di decodifica.
  *
- * La classe descrive COME deve essere interpretato un PID, ma non contiene
- * la logica vera e propria di decodifica.
+ * La stessa struttura viene utilizzata sia per:
  *
- * Esempio:
+ * - PID OBD-II standard;
+ * - PID proprietari/OEM;
+ * - PID specifici di una determinata centralina.
  *
- *     PID 0104
+ * Esempio standard:
  *
+ *     PID 010C
+ *
+ *     mode = 01
  *     decoder = FORMULA
- *     formula = A*100/255
+ *     formula = ((A*256)+B)/4
  *
- * oppure:
+ * Esempio OEM:
  *
- *     PID 0100
+ *     PID 221234
  *
- *     decoder = BITFIELD
- *     formula = ""
- *
- * La classe non contiene il nome e la descrizione tradotti.
- * Contiene invece le relative chiavi di localizzazione Android.
+ *     mode = 22
+ *     decoder = FORMULA
+ *     formula = ((A*256)+B)/10
  *
  * IMPORTANTE:
  *
- * Il fatto che un PID sia presente in questa classe significa che il PID
- * appartiene al catalogo conosciuto dall'applicazione.
+ * La presenza di un PID in questa classe NON significa che il PID
+ * sia supportato dall'ECU attualmente collegata.
  *
- * NON significa che il PID sia supportato dall'ECU attualmente collegata.
+ * Per i PID standard il supporto viene determinato tramite le
+ * bitmap OBD-II quando previste.
  *
- * Il supporto reale viene determinato separatamente tramite le bitmap
- * restituite dalla ECU.
+ * Per i PID OEM il supporto dipende dal dataset e dalla logica
+ * diagnostica specifica della centralina.
  *
  * ****************************************************************************
  */
@@ -54,11 +58,11 @@ public class PidDefinition {
     /**
      * Identificatore completo del PID.
      *
-     * Esempio:
+     * Esempi:
      *
      * 010C
-     *
-     * Il valore comprende Mode + PID.
+     * 0105
+     * 221234
      */
     @NonNull
     private final String pid;
@@ -79,21 +83,20 @@ public class PidDefinition {
 
     /**
      * Unità di misura del valore decodificato.
-     *
-     * Può essere vuota per PID che non rappresentano
-     * direttamente una grandezza numerica.
      */
     @NonNull
     private final String unit;
 
     /**
-     * Tipo di decoder utilizzato per interpretare
-     * i dati restituiti dalla ECU.
+     * Tipo di decoder utilizzato.
      *
      * Esempi:
      *
      * FORMULA
+     * SIGNED_FORMULA
      * BITFIELD
+     * MULTI_VALUE
+     * ENUM
      * DTC
      * RAW
      */
@@ -101,40 +104,32 @@ public class PidDefinition {
     private final String decoder;
 
     /**
-     * Formula matematica utilizzata dal decoder FORMULA.
-     *
-     * Esempi:
-     *
-     * A-40
-     *
-     * A*100/255
-     *
-     * ((A*256)+B)/4
-     *
-     * Per decoder che non utilizzano una formula matematica,
-     * ad esempio BITFIELD o DTC, il valore può essere vuoto.
+     * Formula matematica utilizzata dal decoder.
      */
     @NonNull
     private final String formula;
 
     /**
-     * Numero di byte dati restituiti dalla ECU
-     * necessari per interpretare il PID.
+     * Numero di byte dati necessari per interpretare
+     * il valore del PID.
      */
     private final int bytes;
 
     /**
-     * Modalità diagnostica OBD-II.
+     * Modalità diagnostica.
      *
-     * Esempio:
+     * Esempi:
      *
      * 01
+     * 03
+     * 09
+     * 22
      */
     @NonNull
     private final String mode;
 
     /**
-     * Tipo logico del dato restituito dal PID.
+     * Tipo logico del dato.
      *
      * Esempi:
      *
@@ -150,17 +145,94 @@ public class PidDefinition {
     private final String dataType;
 
     /**
-     * Costruisce una definizione PID.
+     * Origine del PID.
      *
-     * @param pid identificatore completo del PID.
-     * @param nameKey chiave localizzazione del nome.
-     * @param descriptionKey chiave localizzazione della descrizione.
+     * Valori previsti:
+     *
+     * STANDARD
+     * OEM
+     *
+     * Il valore predefinito è STANDARD per mantenere
+     * compatibilità con i JSON esistenti.
+     */
+    @NonNull
+    private final String source;
+
+    /**
+     * Costruttore completo.
+     *
+     * @param pid identificatore PID.
+     * @param nameKey chiave localizzazione nome.
+     * @param descriptionKey chiave localizzazione descrizione.
      * @param unit unità di misura.
-     * @param decoder tipo di decoder.
-     * @param formula formula matematica del decoder, se prevista.
-     * @param bytes numero di byte dati richiesti.
+     * @param decoder decoder.
+     * @param formula formula.
+     * @param bytes numero byte.
      * @param mode modalità diagnostica.
-     * @param dataType tipo logico del dato.
+     * @param dataType tipo dato.
+     * @param source origine del PID.
+     */
+    public PidDefinition(
+            @NonNull String pid,
+            @NonNull String nameKey,
+            @NonNull String descriptionKey,
+            @NonNull String unit,
+            @NonNull String decoder,
+            @NonNull String formula,
+            int bytes,
+            @NonNull String mode,
+            @NonNull String dataType,
+            @NonNull String source) {
+
+        this.pid =
+                pid.trim();
+
+        this.nameKey =
+                nameKey.trim();
+
+        this.descriptionKey =
+                descriptionKey.trim();
+
+        this.unit =
+                unit.trim();
+
+        this.decoder =
+                decoder.trim();
+
+        this.formula =
+                formula.trim();
+
+        this.bytes =
+                bytes;
+
+        this.mode =
+                mode.trim();
+
+        this.dataType =
+                dataType.trim();
+
+        this.source =
+                source.trim().toUpperCase();
+    }
+
+    /**
+     * Costruttore compatibile con il precedente modello.
+     *
+     * Tutti i PID creati utilizzando questo costruttore
+     * vengono considerati STANDARD.
+     *
+     * Questo permette di mantenere compatibilità con
+     * eventuale codice già esistente.
+     *
+     * @param pid identificatore PID.
+     * @param nameKey chiave localizzazione nome.
+     * @param descriptionKey chiave localizzazione descrizione.
+     * @param unit unità.
+     * @param decoder decoder.
+     * @param formula formula.
+     * @param bytes numero byte.
+     * @param mode modalità.
+     * @param dataType tipo dato.
      */
     public PidDefinition(
             @NonNull String pid,
@@ -173,21 +245,24 @@ public class PidDefinition {
             @NonNull String mode,
             @NonNull String dataType) {
 
-        this.pid = pid;
-        this.nameKey = nameKey;
-        this.descriptionKey = descriptionKey;
-        this.unit = unit;
-        this.decoder = decoder;
-        this.formula = formula;
-        this.bytes = bytes;
-        this.mode = mode;
-        this.dataType = dataType;
+        this(
+                pid,
+                nameKey,
+                descriptionKey,
+                unit,
+                decoder,
+                formula,
+                bytes,
+                mode,
+                dataType,
+                "STANDARD"
+        );
     }
 
     /**
-     * Restituisce l'identificatore completo del PID.
+     * Restituisce l'identificatore PID.
      *
-     * @return identificatore PID.
+     * @return PID.
      */
     @NonNull
     public String getPid() {
@@ -198,7 +273,7 @@ public class PidDefinition {
     /**
      * Restituisce la chiave di localizzazione del nome.
      *
-     * @return chiave nome.
+     * @return nameKey.
      */
     @NonNull
     public String getNameKey() {
@@ -209,7 +284,7 @@ public class PidDefinition {
     /**
      * Restituisce la chiave di localizzazione della descrizione.
      *
-     * @return chiave descrizione.
+     * @return descriptionKey.
      */
     @NonNull
     public String getDescriptionKey() {
@@ -220,7 +295,7 @@ public class PidDefinition {
     /**
      * Restituisce l'unità di misura.
      *
-     * @return unità di misura.
+     * @return unità.
      */
     @NonNull
     public String getUnit() {
@@ -231,7 +306,7 @@ public class PidDefinition {
     /**
      * Restituisce il tipo di decoder.
      *
-     * @return tipo decoder.
+     * @return decoder.
      */
     @NonNull
     public String getDecoder() {
@@ -240,10 +315,9 @@ public class PidDefinition {
     }
 
     /**
-     * Restituisce la formula matematica del PID.
+     * Restituisce la formula.
      *
-     * @return formula oppure stringa vuota se il decoder
-     *         non utilizza una formula.
+     * @return formula.
      */
     @NonNull
     public String getFormula() {
@@ -252,10 +326,9 @@ public class PidDefinition {
     }
 
     /**
-     * Restituisce il numero di byte dati richiesti
-     * per il PID.
+     * Restituisce il numero di byte.
      *
-     * @return numero di byte.
+     * @return byte richiesti.
      */
     public int getBytes() {
 
@@ -263,9 +336,9 @@ public class PidDefinition {
     }
 
     /**
-     * Restituisce la modalità diagnostica OBD-II.
+     * Restituisce la modalità diagnostica.
      *
-     * @return modalità.
+     * @return mode.
      */
     @NonNull
     public String getMode() {
@@ -276,7 +349,7 @@ public class PidDefinition {
     /**
      * Restituisce il tipo logico del dato.
      *
-     * @return tipo dato.
+     * @return dataType.
      */
     @NonNull
     public String getDataType() {
@@ -285,25 +358,90 @@ public class PidDefinition {
     }
 
     /**
-     * Restituisce una rappresentazione testuale
-     * completa della definizione PID.
+     * Restituisce l'origine del PID.
      *
-     * @return descrizione della definizione.
+     * @return STANDARD oppure OEM.
+     */
+    @NonNull
+    public String getSource() {
+
+        return source;
+    }
+
+    /**
+     * Indica se il PID appartiene al catalogo standard.
+     *
+     * @return true se standard.
+     */
+    public boolean isStandard() {
+
+        return "STANDARD".equals(
+                source
+        );
+    }
+
+    /**
+     * Indica se il PID è proprietario/OEM.
+     *
+     * @return true se OEM.
+     */
+    public boolean isOem() {
+
+        return "OEM".equals(
+                source
+        );
+    }
+
+    /**
+     * Rappresentazione testuale della definizione.
+     *
+     * @return stringa descrittiva.
      */
     @NonNull
     @Override
     public String toString() {
 
         return "PidDefinition{" +
-                "pid='" + pid + '\'' +
-                ", nameKey='" + nameKey + '\'' +
-                ", descriptionKey='" + descriptionKey + '\'' +
-                ", unit='" + unit + '\'' +
-                ", decoder='" + decoder + '\'' +
-                ", formula='" + formula + '\'' +
-                ", bytes=" + bytes +
-                ", mode='" + mode + '\'' +
-                ", dataType='" + dataType + '\'' +
+
+                "pid='" +
+                pid +
+                '\'' +
+
+                ", nameKey='" +
+                nameKey +
+                '\'' +
+
+                ", descriptionKey='" +
+                descriptionKey +
+                '\'' +
+
+                ", unit='" +
+                unit +
+                '\'' +
+
+                ", decoder='" +
+                decoder +
+                '\'' +
+
+                ", formula='" +
+                formula +
+                '\'' +
+
+                ", bytes=" +
+                bytes +
+
+                ", mode='" +
+                mode +
+                '\'' +
+
+                ", dataType='" +
+                dataType +
+                '\'' +
+
+                ", source='" +
+                source +
+                '\'' +
+
                 '}';
     }
 }

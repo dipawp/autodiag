@@ -280,6 +280,13 @@ public class JsonPidRepository {
                         "dataType"
                 );
 
+
+        String source =
+                object.optString(
+                        "source",
+                        "STANDARD"
+                ).trim().toUpperCase(Locale.US);
+
         if (bytes < 0) {
 
             throw new JSONException(
@@ -306,7 +313,8 @@ public class JsonPidRepository {
                 formula,
                 bytes,
                 mode,
-                dataType
+                dataType,
+                source
         );
     }
 
