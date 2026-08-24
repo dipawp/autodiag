@@ -3,9 +3,10 @@
   "source": "OEM",
   "manufacturer": "TEST",
   "brand": "TEST",
-  "model": "TEST",
+  "model": "TEST_MODEL",
   "ecu": "TEST_ECU",
   "protocol": "CAN",
+
   "pids": [
     {
       "pid": "22TEST",

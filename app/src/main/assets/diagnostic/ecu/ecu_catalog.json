@@ -1,0 +1,30 @@
+{
+  "version": "1.0",
+  "description": "Catalogo ECU diagnostiche",
+
+  "ecus": [
+    {
+      "brand": "TEST",
+      "model": "TEST_MODEL",
+      "engine": "TEST_ENGINE",
+      "ecu": "TEST_ECU",
+      "protocol": "CAN",
+      "pidFile": "",
+
+      "datasets": [
+        {
+          "type": "STANDARD_OBD",
+          "filePath": "pids/standard/obd2_standard.json",
+          "protocol": "OBD-II",
+          "description": "PID OBD-II standard"
+        },
+        {
+          "type": "OEM_PID",
+          "filePath": "pids/test/test_dataset.json",
+          "protocol": "CAN",
+          "description": "Dataset OEM di test"
+        }
+      ]
+    }
+  ]
+}
