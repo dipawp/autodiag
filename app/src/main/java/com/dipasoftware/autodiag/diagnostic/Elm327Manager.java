@@ -104,6 +104,14 @@ public class Elm327Manager {
     private final DiagnosticLogger diagnosticLogger;
 
 
+    /**
+     * Seleziona e utilizza il parser corretto
+     * per la risposta diagnostica.
+     */
+    @NonNull
+    private final DiagnosticResponseParser diagnosticResponseParser;
+
+
     /**************************************************************************
      *
      * COSTRUTTORE PRINCIPALE
@@ -131,6 +139,8 @@ public class Elm327Manager {
         this.pidFormulaEvaluator = new PidFormulaEvaluator();
 
         this.diagnosticRequestBuilder = new DiagnosticRequestBuilder();
+        this.diagnosticResponseParser =
+                new DiagnosticResponseParser();
 
 
         this.pidSupportScanner =
@@ -181,6 +191,9 @@ public class Elm327Manager {
 
         this.diagnosticRequestBuilder =
                 new DiagnosticRequestBuilder();
+
+        this.diagnosticResponseParser =
+                new DiagnosticResponseParser();
 
         this.pidSupportScanner =
                 new PidSupportScanner(
@@ -1115,18 +1128,16 @@ public class Elm327Manager {
      * La richiesta viene costruita da PidDefinition tramite
      * DiagnosticRequestBuilder.
      *
-     * Questo permette di supportare:
-     *
-     * - PID OBD-II standard;
-     * - PID OEM con request esplicita;
-     * - DID/servizi diagnostici definiti dal catalogo.
+     * La risposta viene interpretata tramite
+     * DiagnosticResponseParser, che seleziona il parser corretto
+     * in base al servizio diagnostico.
      *
      * @param result buffer del risultato.
      * @param definition definizione del parametro.
      *
      * @return risultato del test.
      *
-     * @throws IOException errore comunicazione.
+     * @throws IOException errore di comunicazione.
      */
     @NonNull
     private PidTestResult appendPidResult(
@@ -1140,7 +1151,7 @@ public class Elm327Manager {
          * ---------------------------------------------------------
          */
 
-        String request;
+        final String request;
 
         try {
 
@@ -1168,7 +1179,7 @@ public class Elm327Manager {
 
         /*
          * ---------------------------------------------------------
-         * COMUNICAZIONE ELM327
+         * COMUNICAZIONE
          * ---------------------------------------------------------
          */
 
@@ -1185,7 +1196,7 @@ public class Elm327Manager {
 
         /*
          * ---------------------------------------------------------
-         * ANALISI ERRORE ELM327
+         * ERRORI ELM327
          * ---------------------------------------------------------
          */
 
@@ -1233,20 +1244,67 @@ public class Elm327Manager {
 
         /*
          * ---------------------------------------------------------
-         * PARSING OBD
+         * PARSING DIAGNOSTICO
          * ---------------------------------------------------------
          */
 
         try {
 
-            ObdResponseParser.ObdResponse obdResponse =
-                    obdResponseParser.parse(
+            DiagnosticResponseResult diagnosticResponse =
+                    diagnosticResponseParser.parse(
+                            definition,
                             response,
                             request
                     );
 
+            /*
+             * -----------------------------------------------------
+             * RISPOSTA NEGATIVA
+             * -----------------------------------------------------
+             */
+
+            if (diagnosticResponse.isNegative()) {
+
+                result.append(
+                        "STATO: RISPOSTA NEGATIVA ECU\n"
+                );
+
+                result.append(
+                        String.format(
+                                Locale.US,
+                                "SERVICE: %02X\n",
+                                diagnosticResponse.getService()
+                        )
+                );
+
+                result.append(
+                        String.format(
+                                Locale.US,
+                                "IDENTIFIER: %04X\n",
+                                diagnosticResponse.getIdentifier()
+                        )
+                );
+
+                result.append(
+                        String.format(
+                                Locale.US,
+                                "NRC: %02X\n\n",
+                                diagnosticResponse
+                                        .getNegativeResponseCode()
+                        )
+                );
+
+                return PidTestResult.INVALID_RESPONSE;
+            }
+
+            /*
+             * -----------------------------------------------------
+             * DATI
+             * -----------------------------------------------------
+             */
+
             byte[] data =
-                    obdResponse.getData();
+                    diagnosticResponse.getData();
 
             /*
              * -----------------------------------------------------
@@ -1279,13 +1337,38 @@ public class Elm327Manager {
 
             /*
              * -----------------------------------------------------
-             * RAW DATA
+             * RISPOSTA NORMALIZZATA
              * -----------------------------------------------------
              */
 
             result.append(
+                    "PROTOCOLLO: "
+                            + diagnosticResponse
+                            .getProtocolType()
+                            + "\n"
+            );
+
+            result.append(
+                    String.format(
+                            Locale.US,
+                            "SERVICE: %02X\n",
+                            diagnosticResponse
+                                    .getService()
+                    )
+            );
+
+            result.append(
+                    String.format(
+                            Locale.US,
+                            "IDENTIFIER: %04X\n",
+                            diagnosticResponse
+                                    .getIdentifier()
+                    )
+            );
+
+            result.append(
                     "DATA: "
-                            + obdResponse.getDataHex()
+                            + diagnosticResponse.getDataHex()
                             + "\n"
             );
 
@@ -1307,6 +1390,13 @@ public class Elm327Manager {
              * -----------------------------------------------------
              */
 
+            /*
+             * Il valore raw utilizzato dal formula evaluator
+             * continua ad essere il solo data payload.
+             *
+             * Il service, PID/DID e gli eventuali header
+             * non entrano nella formula.
+             */
             double value =
                     pidFormulaEvaluator.evaluate(
                             definition,

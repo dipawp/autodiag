@@ -2,44 +2,63 @@ package com.dipasoftware.autodiag.diagnostic;
 
 import androidx.annotation.NonNull;
 
+import java.util.Locale;
+
 /**
  * ****************************************************************************
  *
  * Classe.....: DiagnosticRequestBuilder
  *
- * Tipo.......: Utility / Service
+ * Tipo.......: Service / Utility
  *
  * Package....: com.dipasoftware.autodiag.diagnostic
  *
  * Descrizione:
  *
- * Costruisce la richiesta diagnostica da inviare alla ECU
+ * Costruisce la richiesta diagnostica da inviare all'ECU
  * utilizzando i metadati presenti in PidDefinition.
  *
- * La classe non esegue la comunicazione.
+ * La classe non esegue alcuna comunicazione.
  *
- * Regole:
+ * Supporta:
  *
- * 1. Se PidDefinition contiene una request esplicita,
- *    viene utilizzata direttamente.
+ * - PID standard memorizzati come 0C;
+ * - PID standard memorizzati come 010C;
+ * - DID UDS come F190 con mode 22;
+ * - richieste esplicite OEM;
+ * - richieste HEX con spazi.
  *
- * 2. Se la request non è presente, viene costruita
- *    concatenando mode + pid.
+ * Regola:
+ *
+ * 1. Se esiste una request esplicita, viene utilizzata.
+ *
+ * 2. Altrimenti, se il PID contiene già il mode
+ *    all'inizio, il PID viene utilizzato direttamente.
+ *
+ * 3. Altrimenti viene costruito:
+ *
+ *        mode + pid
  *
  * ****************************************************************************
  */
 public class DiagnosticRequestBuilder {
 
     /**
-     * Costruisce una richiesta diagnostica.
+     * Costruisce la richiesta diagnostica.
      *
-     * @param definition definizione del parametro.
+     * @param definition definizione diagnostica.
      *
-     * @return richiesta pronta per il trasporto.
+     * @return richiesta HEX normalizzata.
      */
     @NonNull
     public String build(
             @NonNull PidDefinition definition) {
+
+        /*
+         * ---------------------------------------------------------
+         * REQUEST ESPLICITA
+         * ---------------------------------------------------------
+         */
 
         if (definition.hasExplicitRequest()) {
 
@@ -49,12 +68,20 @@ public class DiagnosticRequestBuilder {
         }
 
         String mode =
-                definition.getMode()
-                        .trim();
+                normalizeHex(
+                        definition.getMode()
+                );
 
         String pid =
-                definition.getPid()
-                        .trim();
+                normalizeHex(
+                        definition.getPid()
+                );
+
+        /*
+         * ---------------------------------------------------------
+         * VALIDAZIONE
+         * ---------------------------------------------------------
+         */
 
         if (mode.isEmpty()) {
 
@@ -71,52 +98,118 @@ public class DiagnosticRequestBuilder {
             );
         }
 
+        /*
+         * ---------------------------------------------------------
+         * PID GIÀ COMPLETO
+         * ---------------------------------------------------------
+         *
+         * Esempio:
+         *
+         * mode = 01
+         * pid  = 010C
+         *
+         * risultato:
+         *
+         * 010C
+         */
+
+        if (pid.startsWith(
+                mode
+        )) {
+
+            return pid;
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * PID BREVE
+         * ---------------------------------------------------------
+         *
+         * Esempio:
+         *
+         * mode = 01
+         * pid  = 0C
+         *
+         * risultato:
+         *
+         * 010C
+         */
+
         return normalizeHex(
                 mode + pid
         );
     }
 
     /**
-     * Normalizza una richiesta esadecimale.
+     * Normalizza una stringa HEX.
      *
-     * @param value richiesta.
+     * Rimuove:
      *
-     * @return richiesta normalizzata.
+     * - spazi;
+     * - CR;
+     * - LF;
+     * - prompt ELM327.
+     *
+     * Converte tutto in maiuscolo e verifica che
+     * tutti i caratteri siano HEX validi.
+     *
+     * @param value valore HEX.
+     *
+     * @return valore normalizzato.
      */
     @NonNull
     private String normalizeHex(
             @NonNull String value) {
 
         String normalized =
-                value.trim()
+                value
                         .replace(
                                 " ",
                                 ""
                         )
-                        .toUpperCase();
+                        .replace(
+                                "\r",
+                                ""
+                        )
+                        .replace(
+                                "\n",
+                                ""
+                        )
+                        .replace(
+                                ">",
+                                ""
+                        )
+                        .trim()
+                        .toUpperCase(
+                                Locale.US
+                        );
 
         if (normalized.isEmpty()) {
 
             throw new IllegalArgumentException(
-                    "Richiesta diagnostica vuota."
+                    "Valore HEX vuoto."
             );
         }
 
         if ((normalized.length() % 2) != 0) {
 
             throw new IllegalArgumentException(
-                    "Richiesta diagnostica con "
-                            + "numero dispari di caratteri HEX: "
+                    "Valore HEX con numero dispari "
+                            + "di caratteri: "
                             + normalized
             );
         }
 
-        for (int index = 0;
-             index < normalized.length();
-             index++) {
+        for (
+                int index = 0;
+                index < normalized.length();
+                index++
+        ) {
 
             char character =
-                    normalized.charAt(index);
+                    normalized.charAt(
+                            index
+                    );
 
             boolean hexadecimal =
                     (character >= '0'

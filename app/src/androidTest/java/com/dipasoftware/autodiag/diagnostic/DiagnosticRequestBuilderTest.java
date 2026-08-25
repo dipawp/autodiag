@@ -130,4 +130,45 @@ public class DiagnosticRequestBuilderTest {
                 )
         );
     }
+
+
+    /**
+     * Verifica che un PID standard contenente già il mode
+     * non venga duplicato nella richiesta.
+     *
+     * Esempio reale del catalogo:
+     *
+     * mode = 01
+     * pid  = 010C
+     *
+     * risultato atteso:
+     *
+     * 010C
+     */
+    @Test
+    public void buildFullStandardPidDoesNotDuplicateMode() {
+
+        PidDefinition definition =
+                new PidDefinition(
+                        "010C",
+                        "pid_engine_rpm",
+                        "pid_engine_rpm_description",
+                        "rpm",
+                        "FORMULA",
+                        "((A*256)+B)/4",
+                        2,
+                        "01",
+                        "RPM"
+                );
+
+        DiagnosticRequestBuilder builder =
+                new DiagnosticRequestBuilder();
+
+        assertEquals(
+                "010C",
+                builder.build(
+                        definition
+                )
+        );
+    }
 }
