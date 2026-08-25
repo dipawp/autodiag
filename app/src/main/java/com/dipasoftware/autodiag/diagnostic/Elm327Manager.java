@@ -112,6 +112,24 @@ public class Elm327Manager {
     private final DiagnosticResponseParser diagnosticResponseParser;
 
 
+
+    /**
+     * Esecutore di una singola richiesta diagnostica.
+     *
+     * Centralizza:
+     *
+     * - costruzione della richiesta;
+     * - invio tramite Connection;
+     * - ricezione della risposta;
+     * - parsing diagnostico.
+     *
+     * La gestione degli errori specifici ELM327 rimane
+     * responsabilità di Elm327Manager.
+     */
+    @NonNull
+    private final DiagnosticPidExecutor diagnosticPidExecutor;
+
+
     /**************************************************************************
      *
      * COSTRUTTORE PRINCIPALE
@@ -159,6 +177,10 @@ public class Elm327Manager {
                 );
 
         this.diagnosticLogger = new DiagnosticLogger(context);
+
+
+        this.diagnosticPidExecutor = new DiagnosticPidExecutor(this.connection);
+
     }
 
 
@@ -211,6 +233,9 @@ public class Elm327Manager {
                 );
 
         this.diagnosticLogger = null;
+
+
+        this.diagnosticPidExecutor = new DiagnosticPidExecutor(this.connection);
     }
 
 
@@ -1123,21 +1148,22 @@ public class Elm327Manager {
 
 
     /**
-     * Invia un parametro diagnostico e interpreta la risposta.
+     * Invia un singolo parametro diagnostico e interpreta
+     * la risposta ricevuta.
      *
-     * La richiesta viene costruita da PidDefinition tramite
-     * DiagnosticRequestBuilder.
+     * La costruzione della request, la comunicazione e
+     * il parsing vengono delegati a DiagnosticPidExecutor.
      *
-     * La risposta viene interpretata tramite
-     * DiagnosticResponseParser, che seleziona il parser corretto
-     * in base al servizio diagnostico.
+     * Elm327Manager mantiene invece la responsabilità
+     * di interpretare gli errori specifici del firmware ELM327
+     * e di produrre il log diagnostico.
      *
      * @param result buffer del risultato.
-     * @param definition definizione del parametro.
+     * @param definition definizione PID/DID.
      *
      * @return risultato del test.
      *
-     * @throws IOException errore di comunicazione.
+     * @throws IOException errore comunicazione.
      */
     @NonNull
     private PidTestResult appendPidResult(
@@ -1147,50 +1173,66 @@ public class Elm327Manager {
 
         /*
          * ---------------------------------------------------------
-         * COSTRUZIONE REQUEST
+         * ESECUZIONE REQUEST
          * ---------------------------------------------------------
          */
 
-        final String request;
+        DiagnosticPidExecutor.DiagnosticPidExecution execution;
 
         try {
 
-            request =
-                    diagnosticRequestBuilder.build(
+            execution =
+                    diagnosticPidExecutor.execute(
                             definition
                     );
 
         } catch (IllegalArgumentException exception) {
 
             result.append(
-                    "ERRORE REQUEST: "
+                    "ERRORE REQUEST/PARSING: "
                             + exception.getMessage()
                             + "\n\n"
             );
 
             return PidTestResult.INVALID_RESPONSE;
+
+        } catch (IOException exception) {
+
+            result.append(
+                    "ERRORE COMUNICAZIONE: "
+                            + exception.getMessage()
+                            + "\n\n"
+            );
+
+            return PidTestResult.NO_RESPONSE;
         }
+
+        /*
+         * ---------------------------------------------------------
+         * REQUEST
+         * ---------------------------------------------------------
+         */
 
         result.append(
                 "Invio: "
-                        + request
+                        + execution.getRequest()
                         + "\n"
         );
 
         /*
          * ---------------------------------------------------------
-         * COMUNICAZIONE
+         * RISPOSTA RAW
          * ---------------------------------------------------------
          */
 
         String response =
-                sendCommand(
-                        request
-                );
+                execution.getRawResponse();
 
         result.append(
                 "RX: "
-                        + formatResponse(response)
+                        + formatResponse(
+                        response
+                )
                         + "\n"
         );
 
@@ -1198,6 +1240,18 @@ public class Elm327Manager {
          * ---------------------------------------------------------
          * ERRORI ELM327
          * ---------------------------------------------------------
+         *
+         * Questa parte rimane nel manager.
+         *
+         * È importante perché:
+         *
+         * CAN ERROR
+         * BUS ERROR
+         * NO DATA
+         * SEARCHING
+         * UNABLE TO CONNECT
+         *
+         * non sono errori del parser diagnostico.
          */
 
         ElmError elmError =
@@ -1244,116 +1298,48 @@ public class Elm327Manager {
 
         /*
          * ---------------------------------------------------------
-         * PARSING DIAGNOSTICO
+         * PARSING
+         * ---------------------------------------------------------
+         *
+         * DiagnosticPidExecutor ha conservato sia:
+         *
+         * - risposta raw;
+         * - risultato parsato.
+         *
+         * Se il parser non è riuscito a interpretare la risposta,
+         * il risultato può essere null.
+         */
+
+        DiagnosticResponseResult diagnosticResponse =
+                execution.getParsedResponse();
+
+        if (diagnosticResponse == null) {
+
+            result.append(
+                    "STATO: RISPOSTA DIAGNOSTICA "
+                            + "NON RICONOSCIUTA\n\n"
+            );
+
+            return PidTestResult.INVALID_RESPONSE;
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * RISPOSTA NEGATIVA ECU
          * ---------------------------------------------------------
          */
 
-        try {
-
-            DiagnosticResponseResult diagnosticResponse =
-                    diagnosticResponseParser.parse(
-                            definition,
-                            response,
-                            request
-                    );
-
-            /*
-             * -----------------------------------------------------
-             * RISPOSTA NEGATIVA
-             * -----------------------------------------------------
-             */
-
-            if (diagnosticResponse.isNegative()) {
-
-                result.append(
-                        "STATO: RISPOSTA NEGATIVA ECU\n"
-                );
-
-                result.append(
-                        String.format(
-                                Locale.US,
-                                "SERVICE: %02X\n",
-                                diagnosticResponse.getService()
-                        )
-                );
-
-                result.append(
-                        String.format(
-                                Locale.US,
-                                "IDENTIFIER: %04X\n",
-                                diagnosticResponse.getIdentifier()
-                        )
-                );
-
-                result.append(
-                        String.format(
-                                Locale.US,
-                                "NRC: %02X\n\n",
-                                diagnosticResponse
-                                        .getNegativeResponseCode()
-                        )
-                );
-
-                return PidTestResult.INVALID_RESPONSE;
-            }
-
-            /*
-             * -----------------------------------------------------
-             * DATI
-             * -----------------------------------------------------
-             */
-
-            byte[] data =
-                    diagnosticResponse.getData();
-
-            /*
-             * -----------------------------------------------------
-             * VERIFICA NUMERO BYTE
-             * -----------------------------------------------------
-             */
-
-            if (definition.getBytes() > 0 &&
-                    data.length <
-                            definition.getBytes()) {
-
-                result.append(
-                        "ERRORE: dati insufficienti.\n"
-                );
-
-                result.append(
-                        "BYTE ATTESI: "
-                                + definition.getBytes()
-                                + "\n"
-                );
-
-                result.append(
-                        "BYTE RICEVUTI: "
-                                + data.length
-                                + "\n\n"
-                );
-
-                return PidTestResult.INVALID_RESPONSE;
-            }
-
-            /*
-             * -----------------------------------------------------
-             * RISPOSTA NORMALIZZATA
-             * -----------------------------------------------------
-             */
+        if (diagnosticResponse.isNegative()) {
 
             result.append(
-                    "PROTOCOLLO: "
-                            + diagnosticResponse
-                            .getProtocolType()
-                            + "\n"
+                    "STATO: RISPOSTA NEGATIVA ECU\n"
             );
 
             result.append(
                     String.format(
                             Locale.US,
                             "SERVICE: %02X\n",
-                            diagnosticResponse
-                                    .getService()
+                            diagnosticResponse.getService()
                     )
             );
 
@@ -1361,42 +1347,165 @@ public class Elm327Manager {
                     String.format(
                             Locale.US,
                             "IDENTIFIER: %04X\n",
-                            diagnosticResponse
-                                    .getIdentifier()
+                            diagnosticResponse.getIdentifier()
                     )
             );
 
             result.append(
-                    "DATA: "
-                            + diagnosticResponse.getDataHex()
-                            + "\n"
+                    String.format(
+                            Locale.US,
+                            "NRC: %02X\n\n",
+                            diagnosticResponse
+                                    .getNegativeResponseCode()
+                    )
             );
 
-            /*
-             * -----------------------------------------------------
-             * FORMULA
-             * -----------------------------------------------------
-             */
+            return PidTestResult.INVALID_RESPONSE;
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * DATA
+         * ---------------------------------------------------------
+         */
+
+        byte[] data =
+                diagnosticResponse.getData();
+
+        /*
+         * ---------------------------------------------------------
+         * OFFSET DATI
+         * ---------------------------------------------------------
+         *
+         * Il parser può restituire il payload già depurato
+         * dall'header diagnostico.
+         *
+         * responseDataOffset permette comunque a un dataset
+         * di dichiarare un offset aggiuntivo.
+         */
+
+        int responseDataOffset =
+                definition.getResponseDataOffset();
+
+        if (responseDataOffset > 0) {
+
+            if (responseDataOffset >=
+                    data.length) {
+
+                result.append(
+                        "ERRORE: responseDataOffset "
+                                + "oltre i dati ricevuti.\n"
+                );
+
+                return PidTestResult.INVALID_RESPONSE;
+            }
+
+            byte[] adjustedData =
+                    new byte[
+                            data.length
+                                    - responseDataOffset
+                            ];
+
+            System.arraycopy(
+                    data,
+                    responseDataOffset,
+                    adjustedData,
+                    0,
+                    adjustedData.length
+            );
+
+            data =
+                    adjustedData;
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * VERIFICA BYTE
+         * ---------------------------------------------------------
+         */
+
+        if (definition.getBytes() > 0 &&
+                data.length <
+                        definition.getBytes()) {
 
             result.append(
-                    "FORMULA JSON: "
-                            + definition.getFormula()
+                    "ERRORE: dati insufficienti.\n"
+            );
+
+            result.append(
+                    "BYTE ATTESI: "
+                            + definition.getBytes()
                             + "\n"
             );
 
-            /*
-             * -----------------------------------------------------
-             * EVALUATION
-             * -----------------------------------------------------
-             */
+            result.append(
+                    "BYTE RICEVUTI: "
+                            + data.length
+                            + "\n\n"
+            );
 
-            /*
-             * Il valore raw utilizzato dal formula evaluator
-             * continua ad essere il solo data payload.
-             *
-             * Il service, PID/DID e gli eventuali header
-             * non entrano nella formula.
-             */
+            return PidTestResult.INVALID_RESPONSE;
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * INFORMAZIONI RISPOSTA
+         * ---------------------------------------------------------
+         */
+
+        result.append(
+                "PROTOCOLLO: "
+                        + diagnosticResponse
+                        .getProtocolType()
+                        + "\n"
+        );
+
+        result.append(
+                String.format(
+                        Locale.US,
+                        "SERVICE: %02X\n",
+                        diagnosticResponse
+                                .getService()
+                )
+        );
+
+        result.append(
+                String.format(
+                        Locale.US,
+                        "IDENTIFIER: %04X\n",
+                        diagnosticResponse
+                                .getIdentifier()
+                )
+        );
+
+        result.append(
+                "DATA: "
+                        + bytesToHex(
+                        data
+                )
+                        + "\n"
+        );
+
+        /*
+         * ---------------------------------------------------------
+         * FORMULA
+         * ---------------------------------------------------------
+         */
+
+        result.append(
+                "FORMULA JSON: "
+                        + definition.getFormula()
+                        + "\n"
+        );
+
+        /*
+         * ---------------------------------------------------------
+         * DECODIFICA
+         * ---------------------------------------------------------
+         */
+
+        try {
+
             double value =
                     pidFormulaEvaluator.evaluate(
                             definition,
@@ -1438,6 +1547,7 @@ public class Elm327Manager {
             return PidTestResult.INVALID_RESPONSE;
         }
     }
+
 
 
     /**************************************************************************
@@ -1913,6 +2023,49 @@ public class Elm327Manager {
             return String.format(Locale.US,"%.0f",value);
         }
         return String.format(Locale.US, "%.2f", value);
+    }
+
+
+
+    /**
+     * Converte un array di byte in una stringa HEX
+     * separata da spazi.
+     *
+     * @param data dati.
+     *
+     * @return rappresentazione HEX.
+     */
+    @NonNull
+    private String bytesToHex(
+            @NonNull byte[] data) {
+
+        if (data.length == 0) {
+
+            return "";
+        }
+
+        StringBuilder result =
+                new StringBuilder();
+
+        for (int index = 0;
+             index < data.length;
+             index++) {
+
+            if (index > 0) {
+
+                result.append(" ");
+            }
+
+            result.append(
+                    String.format(
+                            Locale.US,
+                            "%02X",
+                            data[index] & 0xFF
+                    )
+            );
+        }
+
+        return result.toString();
     }
 
 
