@@ -301,4 +301,68 @@ public class DiagnosticDatasetRepositoryTest {
                 pid.getPid()
         );
     }
+
+
+    /**
+     * Verifica che i metadati della transazione diagnostica
+     * vengano caricati correttamente dal JSON.
+     */
+    @Test
+    public void loadPidTransactionMetadata()
+            throws Exception {
+
+        Context context =
+                ApplicationProvider
+                        .getApplicationContext();
+
+        EcuCatalogRepository ecuRepository =
+                new EcuCatalogRepository(
+                        context
+                );
+
+        EcuDefinition ecu =
+                ecuRepository.find(
+                        "TEST",
+                        "TEST_MODEL",
+                        "TEST_ENGINE",
+                        "TEST_ECU"
+                );
+
+        assertNotNull(ecu);
+
+        DiagnosticDataset dataset =
+                ecu.findDataset(
+                        "OEM_PID"
+                );
+
+        assertNotNull(dataset);
+
+        DiagnosticDatasetRepository repository =
+                new DiagnosticDatasetRepository(
+                        context
+                );
+
+        PidDefinition definition =
+                repository.findPid(
+                        dataset,
+                        "22TEST"
+                );
+
+        assertNotNull(definition);
+
+        assertEquals(
+                "22TEST",
+                definition.getRequest()
+        );
+
+        assertEquals(
+                "62",
+                definition.getResponseService()
+        );
+
+        assertEquals(
+                0,
+                definition.getResponseDataOffset()
+        );
+    }
 }

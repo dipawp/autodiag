@@ -81,6 +81,20 @@ public class Elm327Manager {
 
 
 
+    /**
+     * Builder delle richieste diagnostiche.
+     *
+     * Costruisce il comando da inviare all'ECU partendo
+     * dai metadati contenuti nella definizione del PID.
+     *
+     * Permette di supportare sia richieste standard
+     * sia richieste OEM esplicite.
+     */
+    @NonNull
+    private final DiagnosticRequestBuilder diagnosticRequestBuilder;
+
+
+
     @NonNull
     private final PidSupportScanner pidSupportScanner;
 
@@ -115,6 +129,8 @@ public class Elm327Manager {
         this.obdResponseParser = new ObdResponseParser();
 
         this.pidFormulaEvaluator = new PidFormulaEvaluator();
+
+        this.diagnosticRequestBuilder = new DiagnosticRequestBuilder();
 
 
         this.pidSupportScanner =
@@ -162,6 +178,9 @@ public class Elm327Manager {
 
         this.pidFormulaEvaluator =
                 new PidFormulaEvaluator();
+
+        this.diagnosticRequestBuilder =
+                new DiagnosticRequestBuilder();
 
         this.pidSupportScanner =
                 new PidSupportScanner(
@@ -1090,19 +1109,22 @@ public class Elm327Manager {
     }
 
 
-    /**************************************************************************
-     *
-     * PID
-     *
-     **************************************************************************/
-
     /**
-     * Invia un PID e interpreta la risposta.
+     * Invia un parametro diagnostico e interpreta la risposta.
      *
-     * @param result buffer.
-     * @param definition definizione PID.
+     * La richiesta viene costruita da PidDefinition tramite
+     * DiagnosticRequestBuilder.
      *
-     * @return risultato del test PID.
+     * Questo permette di supportare:
+     *
+     * - PID OBD-II standard;
+     * - PID OEM con request esplicita;
+     * - DID/servizi diagnostici definiti dal catalogo.
+     *
+     * @param result buffer del risultato.
+     * @param definition definizione del parametro.
+     *
+     * @return risultato del test.
      *
      * @throws IOException errore comunicazione.
      */
@@ -1112,17 +1134,48 @@ public class Elm327Manager {
             @NonNull PidDefinition definition)
             throws IOException {
 
-        String pid =
-                definition.getPid();
+        /*
+         * ---------------------------------------------------------
+         * COSTRUZIONE REQUEST
+         * ---------------------------------------------------------
+         */
+
+        String request;
+
+        try {
+
+            request =
+                    diagnosticRequestBuilder.build(
+                            definition
+                    );
+
+        } catch (IllegalArgumentException exception) {
+
+            result.append(
+                    "ERRORE REQUEST: "
+                            + exception.getMessage()
+                            + "\n\n"
+            );
+
+            return PidTestResult.INVALID_RESPONSE;
+        }
 
         result.append(
                 "Invio: "
-                        + pid
+                        + request
                         + "\n"
         );
 
+        /*
+         * ---------------------------------------------------------
+         * COMUNICAZIONE ELM327
+         * ---------------------------------------------------------
+         */
+
         String response =
-                sendCommand(pid);
+                sendCommand(
+                        request
+                );
 
         result.append(
                 "RX: "
@@ -1137,7 +1190,9 @@ public class Elm327Manager {
          */
 
         ElmError elmError =
-                detectElmError(response);
+                detectElmError(
+                        response
+                );
 
         if (elmError != ElmError.NONE) {
 
@@ -1147,7 +1202,9 @@ public class Elm327Manager {
                     response
             );
 
-            result.append("\n");
+            result.append(
+                    "\n"
+            );
 
             if (elmError == ElmError.CAN_ERROR ||
                     elmError == ElmError.BUS_ERROR ||
@@ -1185,7 +1242,7 @@ public class Elm327Manager {
             ObdResponseParser.ObdResponse obdResponse =
                     obdResponseParser.parse(
                             response,
-                            pid
+                            request
                     );
 
             byte[] data =
@@ -1198,7 +1255,8 @@ public class Elm327Manager {
              */
 
             if (definition.getBytes() > 0 &&
-                    data.length < definition.getBytes()) {
+                    data.length <
+                            definition.getBytes()) {
 
                 result.append(
                         "ERRORE: dati insufficienti.\n"
@@ -1258,10 +1316,13 @@ public class Elm327Manager {
             result.append(
                     definition.getNameKey()
                             + ": "
-                            + formatValue(value)
+                            + formatValue(
+                            value
+                    )
             );
 
-            if (!definition.getUnit().isEmpty()) {
+            if (!definition.getUnit()
+                    .isEmpty()) {
 
                 result.append(
                         " "
@@ -1275,7 +1336,8 @@ public class Elm327Manager {
 
             return PidTestResult.OK;
 
-        } catch (IllegalArgumentException exception) {
+        } catch (
+                IllegalArgumentException exception) {
 
             result.append(
                     "ERRORE DECODIFICA: "

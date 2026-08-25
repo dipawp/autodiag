@@ -370,6 +370,47 @@ public class JsonPidRepository {
                         0
                 );
 
+
+        /**
+         * Richiesta diagnostica esplicita.
+         *
+         * Se non presente nel JSON, la richiesta verrà
+         * eventualmente costruita dal layer diagnostico
+         * usando mode + pid.
+         */
+        String request =
+                object.optString(
+                                "request",
+                                ""
+                        )
+                        .trim()
+                        .toUpperCase(Locale.US);
+
+        /**
+        * Service atteso nella risposta positiva.
+        *
+        * Esempi:
+        *
+        * 41 = risposta positiva Mode 01.
+        * 62 = risposta positiva UDS 0x22.
+        */
+        String responseService =
+                object.optString(
+                                "responseService",
+                                ""
+                        )
+                        .trim()
+                        .toUpperCase(Locale.US);
+
+       /**
+        * Offset del primo byte dati nella risposta.
+        */
+        int responseDataOffset =
+                object.optInt(
+                        "responseDataOffset",
+                        0
+                );
+
         /*
          * Validazione dei dati numerici.
          */
@@ -404,6 +445,15 @@ public class JsonPidRepository {
                             + pid
             );
         }
+
+        if (responseDataOffset < 0) {
+
+            throw new JSONException(
+                    "responseDataOffset non valido per PID "
+                            + pid
+            );
+        }
+
 
         /*
          * Validazione dell'endianness.
@@ -443,7 +493,10 @@ public class JsonPidRepository {
                 endianness,
                 byteOffset,
                 bitOffset,
-                bitLength
+                bitLength,
+                request,
+                responseService,
+                responseDataOffset
         );
     }
 

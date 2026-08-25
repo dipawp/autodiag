@@ -18,7 +18,10 @@
       "bytes": 1,
       "mode": "22",
       "dataType": "PERCENT",
-      "source": "OEM"
+      "source": "OEM",
+      "request": "22TEST",
+      "responseService": "62",
+      "responseDataOffset": 0
     }
   ]
 }

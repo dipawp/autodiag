@@ -13,82 +13,70 @@ import androidx.annotation.NonNull;
  *
  * Descrizione:
  *
- * Rappresenta la definizione di un singolo PID diagnostico.
+ * Rappresenta la definizione completa di un parametro diagnostico.
  *
- * La definizione descrive come una risposta diagnostica deve essere
- * interpretata, ma non contiene la logica vera e propria di decodifica.
- *
- * La stessa struttura viene utilizzata sia per:
+ * La classe viene utilizzata sia per:
  *
  * - PID OBD-II standard;
- * - PID proprietari/OEM;
- * - PID specifici di una determinata centralina.
+ * - PID proprietari OEM;
+ * - DID UDS;
+ * - altri identificatori diagnostici gestiti dal catalogo.
  *
- * Esempio standard:
+ * La classe descrive:
  *
- * PID 010C
+ * - identificatore;
+ * - modalità/servizio;
+ * - richiesta diagnostica;
+ * - risposta attesa;
+ * - decoder;
+ * - formula;
+ * - tipo dato;
+ * - metadati di decoding.
  *
- * mode = 01
- * decoder = FORMULA
- * formula = ((A*256)+B)/4
- *
- * Esempio OEM:
- *
- * PID 221234
- *
- * mode = 22
- * decoder = FORMULA
- * formula = ((A*256)+B)/10
+ * La classe NON esegue la comunicazione con l'ECU.
  *
  * IMPORTANTE:
  *
- * La presenza di un PID in questa classe NON significa che il PID
- * sia supportato dall'ECU attualmente collegata.
- *
- * Per i PID standard il supporto viene determinato tramite le
- * bitmap OBD-II quando previste.
- *
- * Per i PID OEM il supporto dipende dal dataset e dalla logica
- * diagnostica specifica della centralina.
+ * La presenza di un parametro nel catalogo NON significa che
+ * il parametro sia necessariamente supportato dalla ECU.
  *
  * ****************************************************************************
  */
 public class PidDefinition {
 
     /**
-     * Identificatore completo del PID.
+     * Identificatore del parametro.
      *
      * Esempi:
      *
+     * 0C
      * 010C
-     * 0105
+     * F190
      * 221234
      */
     @NonNull
     private final String pid;
 
     /**
-     * Chiave della stringa localizzata contenente
-     * il nome del parametro.
+     * Chiave localizzazione del nome.
      */
     @NonNull
     private final String nameKey;
 
     /**
-     * Chiave della stringa localizzata contenente
-     * la descrizione del parametro.
+     * Chiave localizzazione della descrizione.
      */
     @NonNull
     private final String descriptionKey;
 
     /**
-     * Unità di misura del valore decodificato.
+     * Unità di misura.
      */
     @NonNull
     private final String unit;
 
     /**
-     * Tipo di decoder utilizzato.
+     * Tipo di decoder.
      *
      * Esempi:
      *
@@ -104,19 +92,18 @@ public class PidDefinition {
     private final String decoder;
 
     /**
-     * Formula matematica utilizzata dal decoder.
+     * Formula di conversione.
      */
     @NonNull
     private final String formula;
 
     /**
-     * Numero di byte dati necessari per interpretare
-     * il valore del PID.
+     * Numero di byte dati utilizzati dal decoder.
      */
     private final int bytes;
 
     /**
-     * Modalità diagnostica.
+     * Modalità o servizio diagnostico.
      *
      * Esempi:
      *
@@ -131,101 +118,104 @@ public class PidDefinition {
 
     /**
      * Tipo logico del dato.
-     *
-     * Esempi:
-     *
-     * RPM
-     * TEMPERATURE
-     * PERCENT
-     * PRESSURE
-     * VOLTAGE
-     * BITFIELD
-     * DTC
      */
     @NonNull
     private final String dataType;
 
     /**
-     * Origine del PID.
-     *
-     * Valori previsti:
+     * Origine del parametro.
      *
      * STANDARD
      * OEM
-     *
-     * Il valore predefinito è STANDARD per mantenere
-     * compatibilità con i JSON esistenti.
      */
     @NonNull
     private final String source;
 
     /**
-     * Indica se il valore numerico deve essere interpretato
-     * come signed.
-     *
-     * Per i PID standard esistenti il valore predefinito
-     * è false.
+     * Indica se il valore numerico è signed.
      */
     private final boolean signed;
 
     /**
-     * Ordine dei byte utilizzato per l'interpretazione
-     * del valore.
-     *
-     * Valori previsti:
+     * Ordine dei byte.
      *
      * BIG_ENDIAN
      * LITTLE_ENDIAN
-     *
-     * Per i PID esistenti il valore predefinito è BIG_ENDIAN.
      */
     @NonNull
     private final String endianness;
 
     /**
-     * Offset del primo byte utilizzato dal decoder.
-     *
-     * Normalmente 0.
-     *
-     * È utile per dataset OEM nei quali la risposta contiene
-     * più campi e il valore del PID non inizia dal primo byte.
+     * Offset del premier byte utilizzato par le decoder.
      */
     private final int byteOffset;
 
     /**
-     * Posizione del primo bit utilizzato dal decoder.
-     *
-     * Il bit 0 rappresenta il bit meno significativo.
+     * Offset du premier bit.
      */
     private final int bitOffset;
 
     /**
-     * Numero di bit utilizzati dal decoder.
-     *
-     * Valore 0 significa che non è stato definito
-     * un campo bitfield esplicito.
+     * Numero di bit utilizzati.
      */
     private final int bitLength;
 
     /**
-     * Costruttore completo.
+     * Richiesta diagnostica esplicita.
      *
-     * Questo costruttore mantiene la firma utilizzata
-     * dal repository JSON attuale.
+     * Se vuota, il chiamante può costruire la richiesta
+     * utilizzando mode + pid.
      *
-     * I nuovi parametri di decoding avanzato assumono
-     * i valori predefiniti compatibili con i PID esistenti.
+     * Esempi:
      *
-     * @param pid identificatore PID.
-     * @param nameKey chiave localizzazione nome.
-     * @param descriptionKey chiave localizzazione descrizione.
-     * @param unit unità di misura.
+     * 010C
+     * 22F190
+     */
+    @NonNull
+    private final String request;
+
+    /**
+     * Service byte atteso nella risposta positiva.
+     *
+     * Esempi:
+     *
+     * 41 per Mode 01.
+     * 62 per UDS ReadDataByIdentifier 0x22.
+     *
+     * Una stringa vuota significa che il parametro
+     * non dichiara un service atteso.
+     */
+    @NonNull
+    private final String responseService;
+
+    /**
+     * Offset del primo byte dati all'interno della risposta
+     * già normalizzata dal parser di trasporto.
+     *
+     * Per un normale PID OBD-II è normalmente 0.
+     *
+     * Per una risposta UDS 0x22, dopo aver rimosso il service
+     * e il DID echo, il valore normalmente parte da 0; il campo
+     * è comunque presente per supportare protocolli/decoder OEM
+     * differenti.
+     */
+    private final int responseDataOffset;
+
+    /**
+     * Costruttore compatibile con il modello precedente.
+     *
+     * I nuovi campi assumono valori predefiniti sicuri.
+     *
+     * @param pid identificatore.
+     * @param nameKey nome.
+     * @param descriptionKey descrizione.
+     * @param unit unità.
      * @param decoder decoder.
      * @param formula formula.
      * @param bytes numero byte.
-     * @param mode modalità diagnostica.
+     * @param mode modalità/servizio.
      * @param dataType tipo dato.
-     * @param source origine del PID.
+     * @param source origine.
      */
     public PidDefinition(
             @NonNull String pid,
@@ -254,29 +244,31 @@ public class PidDefinition {
                 "BIG_ENDIAN",
                 0,
                 0,
+                0,
+                "",
+                "",
                 0
         );
     }
 
     /**
-     * Costruttore avanzato per PID che richiedono
-     * informazioni aggiuntive di decoding.
+     * Costruttore completo di decoding.
      *
-     * @param pid identificatore PID.
-     * @param nameKey chiave localizzazione nome.
-     * @param descriptionKey chiave localizzazione descrizione.
-     * @param unit unità di misura.
+     * @param pid identificatore.
+     * @param nameKey nome.
+     * @param descriptionKey descrizione.
+     * @param unit unità.
      * @param decoder decoder.
      * @param formula formula.
-     * @param bytes numero byte.
-     * @param mode modalità diagnostica.
+     * @param bytes byte.
+     * @param mode servizio.
      * @param dataType tipo dato.
-     * @param source origine del PID.
-     * @param signed valore signed.
+     * @param source origine.
+     * @param signed signed.
      * @param endianness ordine byte.
      * @param byteOffset offset byte.
      * @param bitOffset offset bit.
-     * @param bitLength lunghezza campo bit.
+     * @param bitLength lunghezza bitfield.
      */
     public PidDefinition(
             @NonNull String pid,
@@ -295,6 +287,70 @@ public class PidDefinition {
             int bitOffset,
             int bitLength) {
 
+        this(
+                pid,
+                nameKey,
+                descriptionKey,
+                unit,
+                decoder,
+                formula,
+                bytes,
+                mode,
+                dataType,
+                source,
+                signed,
+                endianness,
+                byteOffset,
+                bitOffset,
+                bitLength,
+                "",
+                "",
+                0
+        );
+    }
+
+    /**
+     * Costruttore completo del parametro diagnostico.
+     *
+     * @param pid identificatore.
+     * @param nameKey nome.
+     * @param descriptionKey descrizione.
+     * @param unit unità.
+     * @param decoder decoder.
+     * @param formula formula.
+     * @param bytes byte.
+     * @param mode servizio.
+     * @param dataType tipo dato.
+     * @param source origine.
+     * @param signed signed.
+     * @param endianness ordine byte.
+     * @param byteOffset offset byte.
+     * @param bitOffset offset bit.
+     * @param bitLength lunghezza bit.
+     * @param request richiesta esplicita.
+     * @param responseService service risposta positiva.
+     * @param responseDataOffset offset dati risposta.
+     */
+    public PidDefinition(
+            @NonNull String pid,
+            @NonNull String nameKey,
+            @NonNull String descriptionKey,
+            @NonNull String unit,
+            @NonNull String decoder,
+            @NonNull String formula,
+            int bytes,
+            @NonNull String mode,
+            @NonNull String dataType,
+            @NonNull String source,
+            boolean signed,
+            @NonNull String endianness,
+            int byteOffset,
+            int bitOffset,
+            int bitLength,
+            @NonNull String request,
+            @NonNull String responseService,
+            int responseDataOffset) {
+
         this.pid =
                 pid.trim();
 
@@ -308,7 +364,8 @@ public class PidDefinition {
                 unit.trim();
 
         this.decoder =
-                decoder.trim();
+                decoder.trim()
+                        .toUpperCase();
 
         this.formula =
                 formula.trim();
@@ -317,19 +374,23 @@ public class PidDefinition {
                 bytes;
 
         this.mode =
-                mode.trim();
+                mode.trim()
+                        .toUpperCase();
 
         this.dataType =
-                dataType.trim();
+                dataType.trim()
+                        .toUpperCase();
 
         this.source =
-                source.trim().toUpperCase();
+                source.trim()
+                        .toUpperCase();
 
         this.signed =
                 signed;
 
         String normalizedEndianness =
-                endianness.trim().toUpperCase();
+                endianness.trim()
+                        .toUpperCase();
 
         if (!"BIG_ENDIAN".equals(
                 normalizedEndianness)
@@ -340,18 +401,24 @@ public class PidDefinition {
             throw new IllegalArgumentException(
                     "Endianness non supportato: "
                             + endianness
-                            + ". Valori ammessi: "
-                            + "BIG_ENDIAN, LITTLE_ENDIAN."
             );
         }
 
         this.endianness =
                 normalizedEndianness;
 
+        if (bytes < 0) {
+
+            throw new IllegalArgumentException(
+                    "Numero byte negativo: "
+                            + bytes
+            );
+        }
+
         if (byteOffset < 0) {
 
             throw new IllegalArgumentException(
-                    "byteOffset non può essere negativo: "
+                    "byteOffset negativo: "
                             + byteOffset
             );
         }
@@ -359,7 +426,7 @@ public class PidDefinition {
         if (bitOffset < 0) {
 
             throw new IllegalArgumentException(
-                    "bitOffset non può essere negativo: "
+                    "bitOffset negativo: "
                             + bitOffset
             );
         }
@@ -367,8 +434,16 @@ public class PidDefinition {
         if (bitLength < 0) {
 
             throw new IllegalArgumentException(
-                    "bitLength non può essere negativo: "
+                    "bitLength negativo: "
                             + bitLength
+            );
+        }
+
+        if (responseDataOffset < 0) {
+
+            throw new IllegalArgumentException(
+                    "responseDataOffset negativo: "
+                            + responseDataOffset
             );
         }
 
@@ -380,24 +455,29 @@ public class PidDefinition {
 
         this.bitLength =
                 bitLength;
+
+        this.request =
+                request.trim()
+                        .toUpperCase();
+
+        this.responseService =
+                responseService.trim()
+                        .toUpperCase();
+
+        this.responseDataOffset =
+                responseDataOffset;
     }
 
     /**
-     * Costruttore compatibile con il precedente modello.
+     * Costruttore storico compatibile.
      *
-     * Tutti i PID creati utilizzando questo costruttore
-     * vengono considerati STANDARD.
-     *
-     * Questo permette di mantenere compatibilità con
-     * eventuale codice già esistente.
-     *
-     * @param pid identificatore PID.
-     * @param nameKey chiave localizzazione nome.
-     * @param descriptionKey chiave localizzazione descrizione.
+     * @param pid identificatore.
+     * @param nameKey nome.
+     * @param descriptionKey descrizione.
      * @param unit unità.
      * @param decoder decoder.
      * @param formula formula.
-     * @param bytes numero byte.
+     * @param bytes byte.
      * @param mode modalità.
      * @param dataType tipo dato.
      */
@@ -427,9 +507,9 @@ public class PidDefinition {
     }
 
     /**
-     * Restituisce l'identificatore PID.
+     * Restituisce il PID.
      *
-     * @return PID.
+     * @return identificatore.
      */
     @NonNull
     public String getPid() {
@@ -438,7 +518,7 @@ public class PidDefinition {
     }
 
     /**
-     * Restituisce la chiave di localizzazione del nome.
+     * Restituisce la chiave del nome.
      *
      * @return nameKey.
      */
@@ -449,7 +529,7 @@ public class PidDefinition {
     }
 
     /**
-     * Restituisce la chiave di localizzazione della descrizione.
+     * Restituisce la chiave della descrizione.
      *
      * @return descriptionKey.
      */
@@ -460,7 +540,7 @@ public class PidDefinition {
     }
 
     /**
-     * Restituisce l'unità di misura.
+     * Restituisce l'unità.
      *
      * @return unità.
      */
@@ -471,7 +551,7 @@ public class PidDefinition {
     }
 
     /**
-     * Restituisce il tipo di decoder.
+     * Restituisce il decoder.
      *
      * @return decoder.
      */
@@ -495,7 +575,7 @@ public class PidDefinition {
     /**
      * Restituisce il numero di byte.
      *
-     * @return byte richiesti.
+     * @return byte.
      */
     public int getBytes() {
 
@@ -503,7 +583,7 @@ public class PidDefinition {
     }
 
     /**
-     * Restituisce la modalità diagnostica.
+     * Restituisce il servizio/modalità.
      *
      * @return mode.
      */
@@ -514,7 +594,7 @@ public class PidDefinition {
     }
 
     /**
-     * Restituisce il tipo logico del dato.
+     * Restituisce il tipo del dato.
      *
      * @return dataType.
      */
@@ -525,7 +605,7 @@ public class PidDefinition {
     }
 
     /**
-     * Restituisce l'origine del PID.
+     * Restituisce l'origine.
      *
      * @return STANDARD oppure OEM.
      */
@@ -536,9 +616,9 @@ public class PidDefinition {
     }
 
     /**
-     * Indica se il PID appartiene al catalogo standard.
+     * Indica se il parametro è standard.
      *
-     * @return true se standard.
+     * @return true se STANDARD.
      */
     public boolean isStandard() {
 
@@ -548,7 +628,7 @@ public class PidDefinition {
     }
 
     /**
-     * Indica se il PID è proprietario/OEM.
+     * Indica se il parametro è OEM.
      *
      * @return true se OEM.
      */
@@ -560,7 +640,7 @@ public class PidDefinition {
     }
 
     /**
-     * Indica se il valore numerico è signed.
+     * Indica se il valore è signed.
      *
      * @return true se signed.
      */
@@ -570,9 +650,9 @@ public class PidDefinition {
     }
 
     /**
-     * Restituisce l'ordine dei byte.
+     * Restituisce l'endianness.
      *
-     * @return BIG_ENDIAN oppure LITTLE_ENDIAN.
+     * @return BIG_ENDIAN o LITTLE_ENDIAN.
      */
     @NonNull
     public String getEndianness() {
@@ -581,9 +661,9 @@ public class PidDefinition {
     }
 
     /**
-     * Restituisce l'offset del primo byte.
+     * Restituisce l'offset byte.
      *
-     * @return offset byte.
+     * @return offset.
      */
     public int getByteOffset() {
 
@@ -591,9 +671,9 @@ public class PidDefinition {
     }
 
     /**
-     * Restituisce l'offset del primo bit.
+     * Restituisce l'offset bit.
      *
-     * @return offset bit.
+     * @return offset.
      */
     public int getBitOffset() {
 
@@ -601,9 +681,9 @@ public class PidDefinition {
     }
 
     /**
-     * Restituisce la lunghezza del campo in bit.
+     * Restituisce la lunghezza del bitfield.
      *
-     * @return numero di bit.
+     * @return numero bit.
      */
     public int getBitLength() {
 
@@ -611,9 +691,61 @@ public class PidDefinition {
     }
 
     /**
-     * Rappresentazione testuale della definizione.
+     * Restituisce la richiesta diagnostica esplicita.
      *
-     * @return stringa descrittiva.
+     * @return richiesta oppure stringa vuota.
+     */
+    @NonNull
+    public String getRequest() {
+
+        return request;
+    }
+
+    /**
+     * Indica se è stata definita una richiesta esplicita.
+     *
+     * @return true se request non vuota.
+     */
+    public boolean hasExplicitRequest() {
+
+        return !request.isEmpty();
+    }
+
+    /**
+     * Restituisce il service positivo atteso.
+     *
+     * @return service oppure stringa vuota.
+     */
+    @NonNull
+    public String getResponseService() {
+
+        return responseService;
+    }
+
+    /**
+     * Indica se è stato dichiarato un service positivo.
+     *
+     * @return true se presente.
+     */
+    public boolean hasResponseService() {
+
+        return !responseService.isEmpty();
+    }
+
+    /**
+     * Restituisce l'offset dei dati nella risposta.
+     *
+     * @return offset.
+     */
+    public int getResponseDataOffset() {
+
+        return responseDataOffset;
+    }
+
+    /**
+     * Rappresentazione testuale.
+     *
+     * @return descrizione completa.
      */
     @NonNull
     @Override
@@ -660,6 +792,14 @@ public class PidDefinition {
                 bitOffset +
                 ", bitLength=" +
                 bitLength +
+                ", request='" +
+                request +
+                '\'' +
+                ", responseService='" +
+                responseService +
+                '\'' +
+                ", responseDataOffset=" +
+                responseDataOffset +
                 '}';
     }
 }
