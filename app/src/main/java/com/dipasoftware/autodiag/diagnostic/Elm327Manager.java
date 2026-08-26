@@ -81,20 +81,6 @@ public class Elm327Manager {
 
 
 
-    /**
-     * Builder delle richieste diagnostiche.
-     *
-     * Costruisce il comando da inviare all'ECU partendo
-     * dai metadati contenuti nella definizione del PID.
-     *
-     * Permette di supportare sia richieste standard
-     * sia richieste OEM esplicite.
-     */
-    @NonNull
-    private final DiagnosticRequestBuilder diagnosticRequestBuilder;
-
-
-
     @NonNull
     private final PidSupportScanner pidSupportScanner;
 
@@ -102,14 +88,6 @@ public class Elm327Manager {
 
     @NonNull
     private final DiagnosticLogger diagnosticLogger;
-
-
-    /**
-     * Seleziona e utilizza il parser corretto
-     * per la risposta diagnostica.
-     */
-    @NonNull
-    private final DiagnosticResponseParser diagnosticResponseParser;
 
 
 
@@ -156,10 +134,6 @@ public class Elm327Manager {
 
         this.pidFormulaEvaluator = new PidFormulaEvaluator();
 
-        this.diagnosticRequestBuilder = new DiagnosticRequestBuilder();
-        this.diagnosticResponseParser =
-                new DiagnosticResponseParser();
-
 
         this.pidSupportScanner =
                 new PidSupportScanner(
@@ -205,22 +179,12 @@ public class Elm327Manager {
 
         this.pidRepository = null;
 
-        this.obdResponseParser =
-                new ObdResponseParser();
+        this.obdResponseParser = new ObdResponseParser();
 
-        this.pidFormulaEvaluator =
-                new PidFormulaEvaluator();
-
-        this.diagnosticRequestBuilder =
-                new DiagnosticRequestBuilder();
-
-        this.diagnosticResponseParser =
-                new DiagnosticResponseParser();
+        this.pidFormulaEvaluator = new PidFormulaEvaluator();
 
         this.pidSupportScanner =
-                new PidSupportScanner(
-                        new ObdCommandExecutor() {
-
+                new PidSupportScanner(new ObdCommandExecutor() {
                             @Override
                             public String execute(
                                     @NonNull String command)
@@ -233,11 +197,8 @@ public class Elm327Manager {
                 );
 
         this.diagnosticLogger = null;
-
-
         this.diagnosticPidExecutor = new DiagnosticPidExecutor(this.connection);
     }
-
 
     /**************************************************************************
      *
@@ -261,25 +222,18 @@ public class Elm327Manager {
      *
      * @throws IOException errore comunicazione.
      */
-    public void initialize()
-            throws IOException {
-
+    public void initialize() throws IOException {
         initialized = false;
-
         /*
          * ---------------------------------------------------------
          * RESET
          * ---------------------------------------------------------
          */
-
-        String response =
-                sendCommand("AT Z");
+        String response = sendCommand("AT Z");
 
         if (isEmpty(response)) {
 
-            throw new IOException(
-                    "Nessuna risposta da AT Z."
-            );
+            throw new IOException("Nessuna risposta da AT Z.");
         }
 
         /*
@@ -290,47 +244,27 @@ public class Elm327Manager {
          * identificare nuovamente il dispositivo.
          */
 
-        response =
-                sendCommand("ATI");
+        response = sendCommand("ATI");
 
         if (isEmpty(response)) {
-
-            throw new IOException(
-                    "Nessuna risposta da ATI."
-            );
+            throw new IOException("Nessuna risposta da ATI.");
         }
 
-        elmVersion =
-                extractElmVersion(response);
-
+        elmVersion = extractElmVersion(response);
         /*
          * ---------------------------------------------------------
          * ECHO OFF
          * ---------------------------------------------------------
          */
-
-        response =
-                sendCommand("AT E0");
-
-        checkOkResponse(
-                "AT E0",
-                response
-        );
-
+        response = sendCommand("AT E0");
+        checkOkResponse("AT E0",response);
         /*
          * ---------------------------------------------------------
          * LINE FEED OFF
          * ---------------------------------------------------------
          */
-
-        response =
-                sendCommand("AT L0");
-
-        checkOkResponse(
-                "AT L0",
-                response
-        );
-
+        response = sendCommand("AT L0");
+        checkOkResponse("AT L0",response);
         /*
          * ---------------------------------------------------------
          * SPACES ON
@@ -345,15 +279,8 @@ public class Elm327Manager {
          *
          * ---------------------------------------------------------
          */
-
-        response =
-                sendCommand("AT S1");
-
-        checkOkResponse(
-                "AT S1",
-                response
-        );
-
+        response = sendCommand("AT S1");
+        checkOkResponse("AT S1",response);
         /*
          * ---------------------------------------------------------
          * HEADERS OFF
@@ -361,45 +288,21 @@ public class Elm327Manager {
          * Per il normale parsing OBD-II.
          * ---------------------------------------------------------
          */
-
-        response =
-                sendCommand("AT H0");
-
-        checkOkResponse(
-                "AT H0",
-                response
-        );
-
+        response = sendCommand("AT H0");
+        checkOkResponse("AT H0",response);
         /*
          * ---------------------------------------------------------
          * AUTO PROTOCOL
          * ---------------------------------------------------------
          */
-
-        response =
-                sendCommand("AT SP 0");
-
-        checkOkResponse(
-                "AT SP 0",
-                response
-        );
-
+        response = sendCommand("AT SP 0");
+        checkOkResponse("AT SP 0",response);
         /*
          * ---------------------------------------------------------
          * TIMEOUT STANDARD
          * ---------------------------------------------------------
          */
-
-        /*response =
-                sendCommand("AT ST 64");
-
-        checkOkResponse(
-                "AT ST 64",
-                response
-        );*/
-        response =
-                sendCommand("AT ST 64");
-
+        response = sendCommand("AT ST 64");
         /*
          * AT ST 64 è opzionale.
          *
@@ -412,7 +315,6 @@ public class Elm327Manager {
          * l'inizializzazione.
          */
         if (!isOkResponse(response)) {
-
             String normalized =
                     response == null
                             ? ""
@@ -424,21 +326,9 @@ public class Elm327Manager {
                             .toUpperCase(Locale.US);
 
             if (!normalized.equals("?")) {
-
-                throw new IOException(
-                        "Risposta inattesa da AT ST 64: "
-                                + formatResponse(response)
-                );
+                throw new IOException("Risposta inattesa da AT ST 64: " + formatResponse(response));
             }
         }
-
-
-
-
-
-
-
-
         /*
          * L'ELM327 è configurato.
          *
@@ -450,11 +340,8 @@ public class Elm327Manager {
          * Per questo il test reale viene effettuato
          * da runObdTest().
          */
-
         initialized = true;
     }
-
-
     /**************************************************************************
      *
      * CONNECTION TEST
@@ -471,272 +358,138 @@ public class Elm327Manager {
      * @throws IOException errore comunicazione.
      */
     @NonNull
-    public String runConnectionTest()
-            throws IOException {
-
+    public String runConnectionTest() throws IOException {
         initialized = false;
-
-        StringBuilder result =
-                new StringBuilder();
-
-        result.append(
-                "=== TEST ELM327 ===\n\n"
-        );
-
+        StringBuilder result = new StringBuilder();
+        result.append("=== TEST ELM327 ===\n\n");
         /*
          * ---------------------------------------------------------
          * CONNESSIONE
          * ---------------------------------------------------------
          */
-
-        result.append(
-                "CONNESSIONE: "
-        );
+        result.append("CONNESSIONE: ");
 
         if (connection.isConnected()) {
-
             result.append("OK\n\n");
-
         } else {
-
-            result.append(
-                    "NON CONNESSA\n\n"
-            );
-
-            result.append(
-                    "ERRORE: Connection non connessa."
-            );
-
+            result.append("NON CONNESSA\n\n");
+            result.append("ERRORE: Connection non connessa.");
             return result.toString();
         }
-
         /*
          * ---------------------------------------------------------
          * ATI
          * ---------------------------------------------------------
          */
+        result.append("Invio: ATI\n");
 
-        result.append(
-                "Invio: ATI\n"
-        );
-
-        String response =
-                sendCommand("ATI");
-
-        result.append(
-                "RX: "
-                        + formatResponse(response)
-                        + "\n\n"
-        );
-
-        elmVersion =
-                extractElmVersion(response);
+        String response = sendCommand("ATI");
+        result.append("RX: " + formatResponse(response) + "\n\n");
+        elmVersion = extractElmVersion(response);
 
         if (isEmpty(response)) {
-
-            result.append(
-                    "ERRORE: ELM327 non risponde ad ATI.\n"
-            );
-
+            result.append("ERRORE: ELM327 non risponde ad ATI.\n");
             return result.toString();
         }
-
         /*
          * ---------------------------------------------------------
          * RESET
          * ---------------------------------------------------------
          */
+        result.append("Invio: AT Z\n");
+        response = sendCommand("AT Z");
 
-        result.append(
-                "Invio: AT Z\n"
-        );
-
-        response =
-                sendCommand("AT Z");
-
-        result.append(
-                "RX: "
-                        + formatResponse(response)
-                        + "\n\n"
-        );
+        result.append("RX: " + formatResponse(response) + "\n\n");
 
         if (isEmpty(response)) {
-
-            result.append(
-                    "ERRORE: nessuna risposta da AT Z.\n"
-            );
-
+            result.append("ERRORE: nessuna risposta da AT Z.\n");
             return result.toString();
         }
-
         /*
          * ---------------------------------------------------------
          * ECHO OFF
          * ---------------------------------------------------------
          */
-
-        if (!executeAtCommand(
-                result,
-                "AT E0")) {
-
+        if (!executeAtCommand(result,"AT E0")) {
             return result.toString();
         }
-
         /*
          * ---------------------------------------------------------
          * LINE FEED OFF
          * ---------------------------------------------------------
          */
-
-        if (!executeAtCommand(
-                result,
-                "AT L0")) {
-
+        if (!executeAtCommand(result,"AT L0")) {
             return result.toString();
         }
-
         /*
          * ---------------------------------------------------------
          * SPACES ON
          * ---------------------------------------------------------
          */
-
-        if (!executeAtCommand(
-                result,
-                "AT S1")) {
-
+        if (!executeAtCommand(result,"AT S1")) {
             return result.toString();
         }
-
         /*
          * ---------------------------------------------------------
          * HEADERS OFF
          * ---------------------------------------------------------
          */
-
-        if (!executeAtCommand(
-                result,
-                "AT H0")) {
-
+        if (!executeAtCommand(result,"AT H0")) {
             return result.toString();
         }
-
         /*
          * ---------------------------------------------------------
          * AUTO PROTOCOL
          * ---------------------------------------------------------
          */
-
-        if (!executeAtCommand(
-                result,
-                "AT SP 0")) {
-
+        if (!executeAtCommand(result,"AT SP 0")) {
             return result.toString();
         }
-
         /*
          * ---------------------------------------------------------
          * TIMEOUT
          * ---------------------------------------------------------
          */
-
-        /*if (!executeAtCommand(
-                result,
-                "AT ST 64")) {
-
-            return result.toString();
-        }*/
-
-
-        if (!executeOptionalAtCommand(
-                result,
-                "AT ST 64")) {
-
+        if (!executeOptionalAtCommand(result,"AT ST 64")) {
             return result.toString();
         }
-
         /*
          * ---------------------------------------------------------
          * PROTOCOLLO RILEVATO
          * ---------------------------------------------------------
          */
-
-        result.append(
-                "Invio: AT DP\n"
-        );
-
-        response =
-                sendCommand("AT DP");
-
-        result.append(
-                "RX: "
-                        + formatResponse(response)
-                        + "\n\n"
-        );
-
+        result.append("Invio: AT DP\n");
+        response = sendCommand("AT DP");
+        result.append("RX: " + formatResponse(response) + "\n\n");
         /*
          * ---------------------------------------------------------
          * NUMERO PROTOCOLLO
          * ---------------------------------------------------------
          */
-
-        result.append(
-                "Invio: AT DPN\n"
-        );
-
-        response =
-                sendCommand("AT DPN");
-
-        result.append(
-                "RX: "
-                        + formatResponse(response)
-                        + "\n\n"
-        );
-
+        result.append("Invio: AT DPN\n");
+        response = sendCommand("AT DPN");
+        result.append("RX: " + formatResponse(response) + "\n\n");
         /*
          * ---------------------------------------------------------
          * RISULTATO
          * ---------------------------------------------------------
          */
-
         initialized = true;
-
-        result.append(
-                "ELM327: "
-        );
+        result.append("ELM327: ");
 
         if (elmVersion != null) {
-
-            result.append(
-                    elmVersion
-            );
-
+            result.append(elmVersion);
         } else {
-
-            result.append(
-                    "versione non rilevata"
-            );
+            result.append("versione non rilevata");
         }
 
         result.append("\n");
-
-        result.append(
-                "STATO ELM327: INIZIALIZZATO\n"
-        );
-
-        result.append(
-                "STATO ECU: NON ANCORA VERIFICATO\n\n"
-        );
-
-        result.append(
-                "=== TEST COMPLETATO ==="
-        );
+        result.append("STATO ELM327: INIZIALIZZATO\n");
+        result.append("STATO ECU: NON ANCORA VERIFICATO\n\n");
+        result.append("=== TEST COMPLETATO ===");
         saveDiagnosticLog(result);
-
         return result.toString();
     }
-
-
     /**************************************************************************
      *
      * AT COMMAND
@@ -754,41 +507,17 @@ public class Elm327Manager {
      *
      * @throws IOException errore comunicazione.
      */
-    private boolean executeAtCommand(
-            @NonNull StringBuilder result,
-            @NonNull String command)
-            throws IOException {
-
-        result.append(
-                "Invio: "
-                        + command
-                        + "\n"
-        );
-
-        String response =
-                sendCommand(command);
-
-        result.append(
-                "RX: "
-                        + formatResponse(response)
-                        + "\n\n"
-        );
+    private boolean executeAtCommand(@NonNull StringBuilder result,@NonNull String command) throws IOException {
+        result.append("Invio: " + command + "\n");
+        String response = sendCommand(command);
+        result.append("RX: " + formatResponse(response) + "\n\n");
 
         if (!isOkResponse(response)) {
-
-            result.append(
-                    "ERRORE: risposta inattesa da "
-                            + command
-                            + ".\n"
-            );
-
+            result.append("ERRORE: risposta inattesa da " + command + ".\n");
             return false;
         }
-
         return true;
     }
-
-
     /**************************************************************************
      *
      * OBD TEST
@@ -808,141 +537,50 @@ public class Elm327Manager {
      * @throws IOException errore comunicazione.
      */
     @NonNull
-    public String runObdTest()
-            throws IOException {
-
-        StringBuilder result =
-                new StringBuilder();
-
-        result.append(
-                "=== TEST OBD-II ===\n\n"
-        );
-
-        /*if (!initialized) {
-
-            result.append(
-                    "ERRORE:\n"
-                            + "ELM327 non inizializzato."
-            );
-
-            return result.toString();
-        }*/
-
+    public String runObdTest() throws IOException {
+        StringBuilder result = new StringBuilder();
+        result.append("=== TEST OBD-II ===\n\n");
 
         try {
-
             ensureInitialized();
-
         } catch (IOException exception) {
-
-            result.append(
-                    "ERRORE INIZIALIZZAZIONE ELM327:\n"
-                            + exception.getMessage()
-                            + "\n"
-            );
-
+            result.append("ERRORE INIZIALIZZAZIONE ELM327:\n" + exception.getMessage() + "\n");
             return result.toString();
         }
 
-        result.append(
-                "Invio: 0100\n"
-        );
-
-        String response =
-                sendCommand("0100");
-
-        result.append(
-                "RX: "
-                        + formatResponse(response)
-                        + "\n\n"
-        );
-
+        result.append("Invio: 0100\n");
+        String response = sendCommand("0100");
+        result.append("RX: " + formatResponse(response) + "\n\n");
         /*
          * Analisi errori ELM327.
          */
-
-        ElmError error =
-                detectElmError(response);
-
+        ElmError error = detectElmError(response);
         if (error != ElmError.NONE) {
-
-            appendElmError(
-                    result,
-                    error,
-                    response
-            );
-
+            appendElmError(result,error,response);
             return result.toString();
         }
-
         /*
          * Risposta vuota.
          */
-
         if (isEmpty(response)) {
-
-            result.append(
-                    "STATO ECU: NESSUNA RISPOSTA\n"
-            );
-
+            result.append("STATO ECU: NESSUNA RISPOSTA\n");
             return result.toString();
         }
-
         /*
          * Tentiamo il parsing reale.
          */
-
         try {
-
-            ObdResponseParser.ObdResponse obdResponse =
-                    obdResponseParser.parse(
-                            response,
-                            "0100"
-                    );
-
-            result.append(
-                    "SERVICE: "
-                            + formatHex(
-                            obdResponse.getService()
-                    )
-                            + "\n"
-            );
-
-            result.append(
-                    "PID: "
-                            + formatHex(
-                            obdResponse.getPid()
-                    )
-                            + "\n"
-            );
-
-            result.append(
-                    "DATA: "
-                            + obdResponse.getDataHex()
-                            + "\n\n"
-            );
-
-            result.append(
-                    "STATO ECU: RISPOSTA ECU VALIDA\n"
-            );
-
+            ObdResponseParser.ObdResponse obdResponse = obdResponseParser.parse(response,"0100");
+            result.append("SERVICE: " + formatHex(obdResponse.getService()) + "\n");
+            result.append("PID: " + formatHex(obdResponse.getPid()) + "\n");
+            result.append("DATA: " + obdResponse.getDataHex() + "\n\n");
+            result.append("STATO ECU: RISPOSTA ECU VALIDA\n");
         } catch (IllegalArgumentException exception) {
-
-            result.append(
-                    "STATO ECU: RISPOSTA NON RICONOSCIUTA\n"
-            );
-
-            result.append(
-                    "MOTIVO: "
-                            + exception.getMessage()
-                            + "\n"
-            );
+            result.append("STATO ECU: RISPOSTA NON RICONOSCIUTA\n");
+            result.append("MOTIVO: " + exception.getMessage() + "\n");
         }
-
         return result.toString();
     }
-
-
     /**
      * Esegue il test dei PID OBD-II standard.
      *
@@ -959,194 +597,85 @@ public class Elm327Manager {
      * @throws IOException errore di comunicazione.
      */
     @NonNull
-    public String runLiveDataTest()
-            throws IOException {
-
-        StringBuilder result =
-                new StringBuilder();
-
-        result.append(
-                "=== LIVE DATA TEST ===\n\n"
-        );
-
+    public String runLiveDataTest() throws IOException {
+        StringBuilder result = new StringBuilder();
+        result.append("=== LIVE DATA TEST ===\n\n");
         try {
-
             ensureInitialized();
-
         } catch (IOException exception) {
-
-            result.append(
-                    "ERRORE INIZIALIZZAZIONE ELM327:\n"
-                            + exception.getMessage()
-                            + "\n"
-            );
-
+            result.append("ERRORE INIZIALIZZAZIONE ELM327:\n" + exception.getMessage() + "\n");
             saveDiagnosticLog(result);
-
             return result.toString();
         }
-
         if (pidRepository == null) {
-
-            result.append(
-                    "ERRORE:\n"
-                            + "Repository PID non disponibile."
-            );
-
+            result.append("ERRORE:\n" + "Repository PID non disponibile.");
             return result.toString();
         }
-
         List<PidDefinition> definitions;
-
         try {
-
-            definitions =
-                    pidRepository.loadStandardPids();
-
+            definitions = pidRepository.loadStandardPids();
         } catch (JSONException exception) {
-
-            result.append(
-                    "ERRORE CARICAMENTO PID JSON:\n"
-                            + exception.getMessage()
-            );
-
+            result.append("ERRORE CARICAMENTO PID JSON:\n" + exception.getMessage());
             return result.toString();
         }
-
         if (definitions.isEmpty()) {
-
-            result.append(
-                    "ERRORE:\n"
-                            + "Nessun PID presente nel dataset."
-            );
-
+            result.append("ERRORE:\n" + "Nessun PID presente nel dataset.");
             return result.toString();
         }
-
-        result.append(
-                "PID CARICATI: "
-                        + definitions.size()
-                        + "\n\n"
-        );
-
+        result.append("PID CARICATI: " + definitions.size() + "\n\n");
         /*
          * =========================================================
          * SCANSIONE BITMAP
          * =========================================================
          */
-
-        result.append(
-                "=== SCANSIONE PID SUPPORTATI ===\n\n"
-        );
-
+        result.append("=== SCANSIONE PID SUPPORTATI ===\n\n");
         SupportedPidSet supportedPids;
-
         try {
-
-            supportedPids =
-                    pidSupportScanner.scan();
-
+            supportedPids = pidSupportScanner.scan();
         } catch (Exception exception) {
-
-            result.append(
-                    "ERRORE SCANSIONE PID SUPPORTATI:\n"
-                            + exception.getMessage()
-                            + "\n"
-            );
-
+            result.append("ERRORE SCANSIONE PID SUPPORTATI:\n" + exception.getMessage() + "\n");
             saveDiagnosticLog(result);
-
             return result.toString();
         }
-
-        result.append(
-                "TOTALE PID SUPPORTATI ECU: "
-                        + supportedPids.size()
-                        + "\n\n"
-        );
-
+        result.append("TOTALE PID SUPPORTATI ECU: " + supportedPids.size() + "\n\n");
         /*
          * =========================================================
          * LIVE DATA
          * =========================================================
          */
-
-        result.append(
-                "=== LIVE DATA ===\n\n"
-        );
-
-        int tested =
-                0;
-
-        int skipped =
-                0;
-
+        result.append("=== LIVE DATA ===\n\n");
+        int tested = 0;
+        int skipped = 0;
         /*
          * Eseguiamo solamente i PID presenti
          * nel dataset e supportati dalla ECU.
          */
-        for (PidDefinition definition :
-                definitions) {
-
-            String pid =
-                    definition.getPid()
-                            .trim()
-                            .toUpperCase();
-
+        for (PidDefinition definition : definitions) {
+            String pid = definition.getPid().trim().toUpperCase();
             /*
              * Il PID non è stato dichiarato
              * supportato dalla bitmap.
              */
             if (!supportedPids.contains(pid)) {
-
-                result.append(
-                        "SKIP: "
-                                + pid
-                                + " non supportato dalla ECU\n\n"
-                );
-
+                result.append("SKIP: " + pid + " non supportato dalla ECU\n\n");
                 skipped++;
-
                 continue;
             }
-
             /*
              * PID supportato:
              * eseguiamo la richiesta reale.
              */
-            appendPidResult(
-                    result,
-                    definition
-            );
-
+            appendPidResult(result, definition);
             tested++;
         }
 
-        result.append(
-                "=== RIEPILOGO ===\n"
-        );
-
-        result.append(
-                "PID TESTATI: "
-                        + tested
-                        + "\n"
-        );
-
-        result.append(
-                "PID SALTATI: "
-                        + skipped
-                        + "\n\n"
-        );
-
-        result.append(
-                "=== LIVE DATA COMPLETATO ==="
-        );
-
+        result.append("=== RIEPILOGO ===\n");
+        result.append("PID TESTATI: " + tested + "\n");
+        result.append("PID SALTATI: " + skipped + "\n\n");
+        result.append("=== LIVE DATA COMPLETATO ===");
         saveDiagnosticLog(result);
         return result.toString();
     }
-
-
     /**
      * Invia un singolo parametro diagnostico e interpreta
      * la risposta ricevuta.
