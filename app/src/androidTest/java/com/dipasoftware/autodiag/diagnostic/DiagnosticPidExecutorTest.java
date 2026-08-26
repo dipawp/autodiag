@@ -379,6 +379,12 @@ public class DiagnosticPidExecutorTest {
         @NonNull
         private String lastSentData;
 
+
+        /**
+         * Numero di volte in cui send() è stato chiamato.
+         */
+        private int sendCount;
+
         /**
          * Costruttore.
          *
@@ -392,6 +398,9 @@ public class DiagnosticPidExecutorTest {
 
             this.lastSentData =
                     "";
+
+            this.sendCount =
+                    0;
         }
 
         /**
@@ -430,6 +439,9 @@ public class DiagnosticPidExecutorTest {
 
             lastSentData =
                     data;
+
+
+            sendCount++;
         }
 
         /**
@@ -453,5 +465,128 @@ public class DiagnosticPidExecutorTest {
 
             return lastSentData;
         }
+
+
+
+        /**
+         * Restituisce il numero di invii effettuati.
+         *
+         * @return numero invii.
+         */
+        int getSendCount() {
+
+            return sendCount;
+        }
+    }
+
+
+    /**
+     * Verifica che una richiesta di scrittura venga bloccata
+     * prima di arrivare alla Connection.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void writeRequestIsBlockedBeforeConnection()
+            throws Exception {
+
+        FakeConnection connection =
+                new FakeConnection(
+                        "62 F1 90 12 34"
+                );
+
+        DiagnosticPidExecutor executor =
+                new DiagnosticPidExecutor(
+                        connection
+                );
+
+        PidDefinition definition =
+                new PidDefinition(
+                        "F190",
+                        "pid_write_test",
+                        "pid_write_test_description",
+                        "",
+                        "RAW",
+                        "",
+                        2,
+                        "2E",
+                        "RAW",
+                        "OEM",
+                        false,
+                        "BIG_ENDIAN",
+                        0,
+                        0,
+                        0,
+                        "2EF190",
+                        "6E",
+                        0
+                );
+
+        executor.execute(
+                definition
+        );
+    }
+
+
+
+    /**
+     * Verifica esplicitamente che una request vietata
+     * non venga mai inviata alla Connection.
+     */
+    @Test
+    public void writeRequestNeverReachesConnection()
+            throws Exception {
+
+        FakeConnection connection =
+                new FakeConnection(
+                        "6E F1 90"
+                );
+
+        DiagnosticPidExecutor executor =
+                new DiagnosticPidExecutor(
+                        connection
+                );
+
+        PidDefinition definition =
+                new PidDefinition(
+                        "F190",
+                        "pid_write_test",
+                        "pid_write_test_description",
+                        "",
+                        "RAW",
+                        "",
+                        2,
+                        "2E",
+                        "RAW",
+                        "OEM",
+                        false,
+                        "BIG_ENDIAN",
+                        0,
+                        0,
+                        0,
+                        "2EF190",
+                        "6E",
+                        0
+                );
+
+        try {
+
+            executor.execute(
+                    definition
+            );
+
+            throw new AssertionError(
+                    "La request di scrittura "
+                            + "avrebbe dovuto essere bloccata."
+            );
+
+        } catch (IllegalArgumentException expected) {
+
+            // Test superato.
+        }
+
+        assertTrue(
+                "Una request vietata non deve arrivare "
+                        + "alla Connection.",
+                connection.getSendCount() == 0
+        );
     }
 }

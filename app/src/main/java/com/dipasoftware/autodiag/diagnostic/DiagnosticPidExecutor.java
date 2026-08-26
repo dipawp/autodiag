@@ -58,13 +58,50 @@ public class DiagnosticPidExecutor {
     @NonNull
     private final DiagnosticResponseParser responseParser;
 
+
+    /**
+     * Policy che autorizza o blocca la richiesta
+     * prima dell'invio alla Connection.
+     *
+     * Per la V1 deve essere sempre una policy read-only.
+     */
+    @NonNull
+    private final DiagnosticOperationPolicy operationPolicy;
+
+
+
+    /**
+     * Costruttore standard dell'executor.
+     *
+     * La V1 utilizza sempre la policy read-only.
+     *
+     * Questo costruttore mantiene compatibilità con
+     * tutto il codice esistente che crea DiagnosticPidExecutor
+     * passando solamente la Connection.
+     *
+     * @param connection connessione diagnostica.
+     */
+    public DiagnosticPidExecutor(
+            @NonNull Connection connection) {
+
+        this(
+                connection,
+                new ReadOnlyDiagnosticPolicy()
+        );
+    }
+
+
+
+
+
+
     /**
      * Costruttore.
      *
      * @param connection connessione diagnostica.
      */
     public DiagnosticPidExecutor(
-            @NonNull Connection connection) {
+            @NonNull Connection connection, @NonNull DiagnosticOperationPolicy operationPolicy) {
 
         this.connection =
                 connection;
@@ -74,6 +111,9 @@ public class DiagnosticPidExecutor {
 
         this.responseParser =
                 new DiagnosticResponseParser();
+
+        this.operationPolicy =
+                operationPolicy;
     }
 
     /**
@@ -104,6 +144,22 @@ public class DiagnosticPidExecutor {
                 requestBuilder.build(
                         definition
                 );
+
+
+        /*
+         * ---------------------------------------------------------
+         * POLICY DI SICUREZZA
+         * ---------------------------------------------------------
+         *
+         * La richiesta deve essere autorizzata prima di arrivare
+         * alla Connection.
+         *
+         * Questo è il punto di sicurezza invalicabile della V1.
+         */
+        operationPolicy.validate(
+                definition,
+                request
+        );
 
         /*
          * Invio della request all'ELM327.
