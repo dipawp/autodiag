@@ -2,6 +2,9 @@ package com.dipasoftware.autodiag.diagnostic;
 
 import androidx.annotation.NonNull;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -15,20 +18,19 @@ import java.util.List;
  *
  * Descrizione:
  *
- * Confronta EcuIdentification, cioè le informazioni realmente lette
- * dalla vettura, con gli identificatori dichiarati nelle EcuDefinition
- * del catalogo.
+ * Confronta le informazioni realmente lette dalla ECU con
+ * gli identificatori presenti nel catalogo.
  *
  * Il matcher:
  *
- * - NON comunica con la ECU;
- * - NON carica dataset;
- * - NON modifica dati;
- * - NON decide quale protocollo utilizzare.
+ * - non comunica con la ECU;
+ * - non invia comandi;
+ * - non carica dataset;
+ * - non modifica lo stato del veicolo.
  *
- * Produce esclusivamente un risultato di matching.
+ * Produce una lista ordinata di candidati.
  *
- * Strategia:
+ * Strategia di punteggio:
  *
  * Hardware number   = 50 punti
  * Software number   = 30 punti
@@ -36,33 +38,21 @@ import java.util.List;
  * Supplier          = 10 punti
  * VIN pattern       = 10 punti
  *
- * EXACT:
- *
- * - almeno un identificatore ECU forte;
- * - punteggio >= 80.
- *
- * PROBABLE:
- *
- * - punteggio >= 40;
- * - oppure identificatore forte presente ma punteggio inferiore
- *   alla soglia EXACT.
- *
- * NONE:
- *
- * - nessuna corrispondenza significativa.
+ * Il VIN e il supplier da soli non sono sufficienti
+ * per dichiarare una ECU identificata.
  *
  * ****************************************************************************
  */
 public class EcuCatalogMatcher {
 
     /**
-     * Punteggio hardware number.
+     * Punteggio hardware.
      */
     private static final int SCORE_HARDWARE =
             50;
 
     /**
-     * Punteggio software number.
+     * Punteggio software.
      */
     private static final int SCORE_SOFTWARE =
             30;
@@ -98,11 +88,85 @@ public class EcuCatalogMatcher {
             40;
 
     /**
-     * Esegue il matching dell'identificazione contro
-     * tutte le ECU del catalogo.
+     * Confronta l'identificazione con il catalogo
+     * e restituisce tutti i candidati che hanno
+     * almeno una corrispondenza significativa.
      *
-     * @param identification identificazione letta dalla ECU.
+     * IMPORTANTE:
+     *
+     * La lista dei candidati non utilizza la soglia
+     * PROBABLE_THRESHOLD.
+     *
+     * Questo permette al chiamante di vedere anche
+     * candidati deboli e utilizzare successivamente
+     * il punteggio per la classificazione.
+     *
+     * @param identification identificazione letta.
      * @param definitions ECU disponibili nel catalogo.
+     *
+     * @return candidati ordinati per punteggio decrescente.
+     */
+    @NonNull
+    public List<EcuMatchCandidate> findCandidates(
+            @NonNull EcuIdentification identification,
+            @NonNull List<EcuDefinition> definitions) {
+
+        List<EcuMatchCandidate> candidates =
+                new ArrayList<>();
+
+        for (
+                EcuDefinition definition :
+                definitions
+        ) {
+
+            EcuMatchCandidate candidate =
+                    createCandidate(
+                            identification,
+                            definition
+                    );
+
+            /*
+             * Un candidato viene incluso se almeno un
+             * identificatore ha prodotto una corrispondenza.
+             *
+             * Un punteggio pari a zero non è un candidato.
+             */
+            if (candidate.getScore() > 0) {
+
+                candidates.add(
+                        candidate
+                );
+            }
+        }
+
+        Collections.sort(
+                candidates,
+                new Comparator<EcuMatchCandidate>() {
+
+                    @Override
+                    public int compare(
+                            EcuMatchCandidate first,
+                            EcuMatchCandidate second) {
+
+                        return Integer.compare(
+                                second.getScore(),
+                                first.getScore()
+                        );
+                    }
+                }
+        );
+
+        return Collections.unmodifiableList(
+                candidates
+        );
+    }
+
+    /**
+     * Restituisce il miglior candidato classificato
+     * come EXACT, PROBABLE oppure NONE.
+     *
+     * @param identification identificazione letta.
+     * @param definitions catalogo ECU.
      *
      * @return risultato migliore.
      */
@@ -111,144 +175,16 @@ public class EcuCatalogMatcher {
             @NonNull EcuIdentification identification,
             @NonNull List<EcuDefinition> definitions) {
 
-        EcuDefinition bestDefinition =
-                null;
-
-        int bestScore =
-                0;
-
-        boolean bestHasStrongIdentifier =
-                false;
-
-        for (
-                EcuDefinition definition :
-                definitions
-        ) {
-
-            EcuDefinitionIdentifier identifiers =
-                    definition.getIdentifiers();
-
-            int score =
-                    0;
-
-            boolean hasStrongIdentifier =
-                    false;
-
-            /*
-             * ---------------------------------------------------------
-             * HARDWARE
-             * ---------------------------------------------------------
-             */
-
-            if (identification.hasEcuHardwareNumber()
-                    &&
-                    identifiers.matchesHardware(
-                            identification
-                                    .getEcuHardwareNumber()
-                    )) {
-
-                score +=
-                        SCORE_HARDWARE;
-
-                hasStrongIdentifier =
-                        true;
-            }
-
-            /*
-             * ---------------------------------------------------------
-             * SOFTWARE
-             * ---------------------------------------------------------
-             */
-
-            if (identification.hasEcuSoftwareNumber()
-                    &&
-                    identifiers.matchesSoftware(
-                            identification
-                                    .getEcuSoftwareNumber()
-                    )) {
-
-                score +=
-                        SCORE_SOFTWARE;
-
-                hasStrongIdentifier =
-                        true;
-            }
-
-            /*
-             * ---------------------------------------------------------
-             * PART NUMBER
-             * ---------------------------------------------------------
-             */
-
-            if (identification.hasEcuPartNumber()
-                    &&
-                    identifiers.matchesPartNumber(
-                            identification
-                                    .getEcuPartNumber()
-                    )) {
-
-                score +=
-                        SCORE_PART_NUMBER;
-
-                hasStrongIdentifier =
-                        true;
-            }
-
-            /*
-             * ---------------------------------------------------------
-             * SUPPLIER
-             * ---------------------------------------------------------
-             */
-
-            if (identification.hasSupplier()
-                    &&
-                    identifiers.matchesSupplier(
-                            identification.getSupplier()
-                    )) {
-
-                score +=
-                        SCORE_SUPPLIER;
-            }
-
-            /*
-             * ---------------------------------------------------------
-             * VIN
-             * ---------------------------------------------------------
-             */
-
-            if (identification.hasVin()
-                    &&
-                    identifiers.matchesVin(
-                            identification.getVin()
-                    )) {
-
-                score +=
-                        SCORE_VIN;
-            }
-
-            /*
-             * ---------------------------------------------------------
-             * MIGLIOR RISULTATO
-             * ---------------------------------------------------------
-             */
-
-            if (score > bestScore) {
-
-                bestScore =
-                        score;
-
-                bestDefinition =
-                        definition;
-
-                bestHasStrongIdentifier =
-                        hasStrongIdentifier;
-            }
-        }
+        List<EcuMatchCandidate> candidates =
+                findCandidates(
+                        identification,
+                        definitions
+                );
 
         /*
-         * Nessun candidato.
+         * Nessun candidato con corrispondenze.
          */
-        if (bestDefinition == null) {
+        if (candidates.isEmpty()) {
 
             return new EcuMatchResult(
                     EcuMatchResult.Status.NONE,
@@ -257,42 +193,245 @@ public class EcuCatalogMatcher {
             );
         }
 
+        EcuMatchCandidate best =
+                candidates.get(0);
+
         /*
-         * Nessuna corrispondenza significativa.
+         * ---------------------------------------------------------
+         * AMBIGUITÀ
+         * ---------------------------------------------------------
+         *
+         * Se due candidati hanno lo stesso punteggio,
+         * non selezioniamo automaticamente l'ECU.
+         *
+         * Il punteggio migliore viene comunque restituito
+         * per consentire alla UI di mostrare il risultato.
          */
-        if (bestScore <
+        if (candidates.size() > 1) {
+
+            EcuMatchCandidate second =
+                    candidates.get(1);
+
+            if (best.getScore() ==
+                    second.getScore()) {
+
+                return new EcuMatchResult(
+                        EcuMatchResult.Status.PROBABLE,
+                        best.getEcuDefinition(),
+                        best.getScore()
+                );
+            }
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * NESSUN MATCH SIGNIFICATIVO
+         * ---------------------------------------------------------
+         *
+         * Manteniamo il punteggio reale.
+         *
+         * Esempio:
+         *
+         * supplier = 10
+         * VIN      = 10
+         * totale   = 20
+         *
+         * risultato:
+         *
+         * NONE
+         * score = 20
+         */
+        if (best.getScore() <
                 PROBABLE_THRESHOLD) {
 
             return new EcuMatchResult(
                     EcuMatchResult.Status.NONE,
                     null,
-                    bestScore
+                    best.getScore()
             );
         }
 
         /*
-         * Match ESATTO.
+         * ---------------------------------------------------------
+         * MATCH ESATTO
+         * ---------------------------------------------------------
          *
-         * Un semplice supplier o VIN non è sufficiente.
+         * Per EXACT deve essere presente almeno un
+         * identificatore ECU forte:
+         *
+         * - hardware;
+         * - software;
+         * - part number.
+         *
+         * Supplier e VIN da soli non bastano.
          */
-        if (bestHasStrongIdentifier
+        if (best.hasStrongIdentifierMatch()
                 &&
-                bestScore >= EXACT_THRESHOLD) {
+                best.getScore() >=
+                        EXACT_THRESHOLD) {
 
             return new EcuMatchResult(
                     EcuMatchResult.Status.EXACT,
-                    bestDefinition,
-                    bestScore
+                    best.getEcuDefinition(),
+                    best.getScore()
             );
         }
 
         /*
-         * Match PROBABILE.
+         * ---------------------------------------------------------
+         * MATCH PROBABILE
+         * ---------------------------------------------------------
          */
+
         return new EcuMatchResult(
                 EcuMatchResult.Status.PROBABLE,
-                bestDefinition,
-                bestScore
+                best.getEcuDefinition(),
+                best.getScore()
+        );
+    }
+
+    /**
+     * Crea il candidato per una specifica ECU.
+     *
+     * @param identification identificazione letta.
+     * @param definition ECU catalogata.
+     *
+     * @return candidato.
+     */
+    @NonNull
+    private EcuMatchCandidate createCandidate(
+            @NonNull EcuIdentification identification,
+            @NonNull EcuDefinition definition) {
+
+        EcuDefinitionIdentifier identifiers =
+                definition.getIdentifiers();
+
+        int hardwareScore =
+                0;
+
+        int softwareScore =
+                0;
+
+        int partNumberScore =
+                0;
+
+        int supplierScore =
+                0;
+
+        int vinScore =
+                0;
+
+        boolean strongIdentifierMatch =
+                false;
+
+        /*
+         * ---------------------------------------------------------
+         * HARDWARE
+         * ---------------------------------------------------------
+         */
+
+        if (identification.hasEcuHardwareNumber()
+                &&
+                identifiers.matchesHardware(
+                        identification
+                                .getEcuHardwareNumber()
+                )) {
+
+            hardwareScore =
+                    SCORE_HARDWARE;
+
+            strongIdentifierMatch =
+                    true;
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * SOFTWARE
+         * ---------------------------------------------------------
+         */
+
+        if (identification.hasEcuSoftwareNumber()
+                &&
+                identifiers.matchesSoftware(
+                        identification
+                                .getEcuSoftwareNumber()
+                )) {
+
+            softwareScore =
+                    SCORE_SOFTWARE;
+
+            strongIdentifierMatch =
+                    true;
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * PART NUMBER
+         * ---------------------------------------------------------
+         */
+
+        if (identification.hasEcuPartNumber()
+                &&
+                identifiers.matchesPartNumber(
+                        identification
+                                .getEcuPartNumber()
+                )) {
+
+            partNumberScore =
+                    SCORE_PART_NUMBER;
+
+            strongIdentifierMatch =
+                    true;
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * SUPPLIER
+         * ---------------------------------------------------------
+         */
+
+        if (identification.hasSupplier()
+                &&
+                identifiers.matchesSupplier(
+                        identification.getSupplier()
+                )) {
+
+            supplierScore =
+                    SCORE_SUPPLIER;
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * VIN
+         * ---------------------------------------------------------
+         */
+
+        if (identification.hasVin()
+                &&
+                identifiers.matchesVin(
+                        identification.getVin()
+                )) {
+
+            vinScore =
+                    SCORE_VIN;
+        }
+
+        int totalScore =
+                hardwareScore
+                        + softwareScore
+                        + partNumberScore
+                        + supplierScore
+                        + vinScore;
+
+        return new EcuMatchCandidate(
+                definition,
+                totalScore,
+                strongIdentifierMatch,
+                hardwareScore,
+                softwareScore,
+                partNumberScore,
+                supplierScore,
+                vinScore
         );
     }
 }

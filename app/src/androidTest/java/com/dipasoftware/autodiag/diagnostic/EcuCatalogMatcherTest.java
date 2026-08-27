@@ -8,6 +8,7 @@ import org.junit.runner.RunWith;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -27,10 +28,7 @@ import static org.junit.Assert.assertTrue;
 public class EcuCatalogMatcherTest {
 
     /**
-     * Verifica un match ESATTO ottenuto tramite
-     * hardware + software.
-     *
-     * 50 + 30 = 80
+     * Verifica un match esatto hardware + software.
      */
     @Test
     public void hardwareAndSoftwareProduceExactMatch() {
@@ -51,31 +49,18 @@ public class EcuCatalogMatcherTest {
                 );
 
         EcuDefinition definition =
-                new EcuDefinition(
-                        "Fiat",
-                        "Test Model",
-                        "1.6",
-                        "Bosch EDC17C49",
-                        "CAN",
-                        "",
-                        identifiers,
-                        Collections.emptyList()
+                createDefinition(
+                        identifiers
                 );
 
         EcuIdentification identification =
-                new EcuIdentification(
+                createIdentification(
                         "",
                         "",
                         "EDC17C49",
                         "SW-001",
                         "",
-                        "BOSCH",
-                        "",
-                        "",
-                        "",
-                        "",
-                        "",
-                        new LinkedHashMap<>()
+                        "BOSCH"
                 );
 
         EcuCatalogMatcher matcher =
@@ -94,7 +79,7 @@ public class EcuCatalogMatcherTest {
         );
 
         assertEquals(
-                80,
+                90,
                 result.getScore()
         );
 
@@ -105,163 +90,98 @@ public class EcuCatalogMatcherTest {
     }
 
     /**
-     * Verifica un match ESATTO ottenuto tramite
-     * hardware + part number.
-     *
-     * 50 + 20 + 10 supplier = 80
+     * Verifica che i candidati siano ordinati
+     * dal punteggio più alto al più basso.
      */
     @Test
-    public void hardwareAndPartNumberProduceExactMatch() {
+    public void candidatesAreSortedByScore() {
 
-        EcuDefinitionIdentifier identifiers =
+        EcuDefinitionIdentifier weak =
+                new EcuDefinitionIdentifier(
+                        Collections.emptyList(),
+                        Collections.singletonList(
+                                "SW-001"
+                        ),
+                        Collections.emptyList(),
+                        Collections.emptyList(),
+                        Collections.emptyList()
+                );
+
+        EcuDefinitionIdentifier strong =
                 new EcuDefinitionIdentifier(
                         Collections.singletonList(
                                 "EDC17C49"
                         ),
+                        Collections.singletonList(
+                                "SW-001"
+                        ),
                         Collections.emptyList(),
-                        Collections.singletonList(
-                                "PART-001"
-                        ),
-                        Collections.singletonList(
-                                "BOSCH"
-                        ),
+                        Collections.emptyList(),
                         Collections.emptyList()
                 );
 
-        EcuDefinition definition =
-                new EcuDefinition(
-                        "Fiat",
-                        "Test Model",
-                        "1.6",
-                        "Bosch EDC17C49",
-                        "CAN",
-                        "",
-                        identifiers,
-                        Collections.emptyList()
+        EcuDefinition weakDefinition =
+                createDefinition(
+                        weak
+                );
+
+        EcuDefinition strongDefinition =
+                createDefinition(
+                        strong
                 );
 
         EcuIdentification identification =
-                new EcuIdentification(
+                createIdentification(
                         "",
-                        "PART-001",
+                        "",
                         "EDC17C49",
+                        "SW-001",
                         "",
-                        "",
-                        "BOSCH",
-                        "",
-                        "",
-                        "",
-                        "",
-                        "",
-                        new LinkedHashMap<>()
+                        ""
                 );
 
         EcuCatalogMatcher matcher =
                 new EcuCatalogMatcher();
 
-        EcuMatchResult result =
-                matcher.match(
+        List<EcuMatchCandidate> candidates =
+                matcher.findCandidates(
                         identification,
-                        Collections.singletonList(
-                                definition
+                        Arrays.asList(
+                                weakDefinition,
+                                strongDefinition
                         )
                 );
 
-        assertTrue(
-                result.isExact()
+        assertEquals(
+                2,
+                candidates.size()
+        );
+
+        assertEquals(
+                strongDefinition,
+                candidates.get(0)
+                        .getEcuDefinition()
         );
 
         assertEquals(
                 80,
-                result.getScore()
+                candidates.get(0)
+                        .getScore()
         );
 
         assertEquals(
-                definition,
-                result.getEcuDefinition()
+                30,
+                candidates.get(1)
+                        .getScore()
         );
     }
 
     /**
-     * Verifica un match PROBABILE basato solamente
-     * sull'hardware number.
-     *
-     * 50 punti.
+     * Verifica che supplier + VIN da soli non possano
+     * identificare esattamente una ECU.
      */
     @Test
-    public void hardwareOnlyProducesProbableMatch() {
-
-        EcuDefinitionIdentifier identifiers =
-                new EcuDefinitionIdentifier(
-                        Collections.singletonList(
-                                "EDC17C49"
-                        ),
-                        Collections.emptyList(),
-                        Collections.emptyList(),
-                        Collections.emptyList(),
-                        Collections.emptyList()
-                );
-
-        EcuDefinition definition =
-                new EcuDefinition(
-                        "Fiat",
-                        "Test Model",
-                        "1.6",
-                        "Bosch EDC17C49",
-                        "CAN",
-                        "",
-                        identifiers,
-                        Collections.emptyList()
-                );
-
-        EcuIdentification identification =
-                new EcuIdentification(
-                        "",
-                        "",
-                        "EDC17C49",
-                        "",
-                        "",
-                        "",
-                        "",
-                        "",
-                        "",
-                        "",
-                        "",
-                        new LinkedHashMap<>()
-                );
-
-        EcuCatalogMatcher matcher =
-                new EcuCatalogMatcher();
-
-        EcuMatchResult result =
-                matcher.match(
-                        identification,
-                        Collections.singletonList(
-                                definition
-                        )
-                );
-
-        assertTrue(
-                result.isProbable()
-        );
-
-        assertEquals(
-                50,
-                result.getScore()
-        );
-
-        assertEquals(
-                definition,
-                result.getEcuDefinition()
-        );
-    }
-
-    /**
-     * Verifica che supplier + VIN non possano identificare
-     * da soli una ECU.
-     */
-    @Test
-    public void supplierAndVinAloneAreNotExact() {
+    public void supplierAndVinCannotProduceExactMatch() {
 
         EcuDefinitionIdentifier identifiers =
                 new EcuDefinitionIdentifier(
@@ -277,31 +197,18 @@ public class EcuCatalogMatcherTest {
                 );
 
         EcuDefinition definition =
-                new EcuDefinition(
-                        "Fiat",
-                        "Test Model",
-                        "1.6",
-                        "Bosch ECU",
-                        "CAN",
-                        "",
-                        identifiers,
-                        Collections.emptyList()
+                createDefinition(
+                        identifiers
                 );
 
         EcuIdentification identification =
-                new EcuIdentification(
-                        "ZFA123456789",
+                createIdentification(
+                        "ZFA123456",
                         "",
                         "",
                         "",
                         "",
-                        "BOSCH",
-                        "",
-                        "",
-                        "",
-                        "",
-                        "",
-                        new LinkedHashMap<>()
+                        "BOSCH"
                 );
 
         EcuCatalogMatcher matcher =
@@ -323,14 +230,77 @@ public class EcuCatalogMatcherTest {
                 20,
                 result.getScore()
         );
+
+        assertFalse(
+                result.isExact()
+        );
     }
 
     /**
-     * Verifica che una ECU completamente diversa
-     * non venga selezionata.
+     * Verifica che hardware + supplier possano produrre
+     * un match esatto quando il punteggio raggiunge la soglia.
      */
     @Test
-    public void differentIdentifiersProduceNoMatch() {
+    public void hardwareAndSupplierProduceExactMatch() {
+
+        EcuDefinitionIdentifier identifiers =
+                new EcuDefinitionIdentifier(
+                        Collections.singletonList(
+                                "EDC17C49"
+                        ),
+                        Collections.emptyList(),
+                        Collections.emptyList(),
+                        Collections.singletonList(
+                                "BOSCH"
+                        ),
+                        Collections.emptyList()
+                );
+
+        EcuDefinition definition =
+                createDefinition(
+                        identifiers
+                );
+
+        EcuIdentification identification =
+                createIdentification(
+                        "",
+                        "",
+                        "EDC17C49",
+                        "",
+                        "",
+                        "BOSCH"
+                );
+
+        EcuCatalogMatcher matcher =
+                new EcuCatalogMatcher();
+
+        EcuMatchResult result =
+                matcher.match(
+                        identification,
+                        Collections.singletonList(
+                                definition
+                        )
+                );
+
+        assertTrue(
+                result.isProbable()
+        );
+
+        assertEquals(
+                60,
+                result.getScore()
+        );
+
+        assertFalse(
+                result.isExact()
+        );
+    }
+
+    /**
+     * Verifica nessuna corrispondenza.
+     */
+    @Test
+    public void unrelatedIdentifiersProduceNoMatch() {
 
         EcuDefinitionIdentifier identifiers =
                 new EcuDefinitionIdentifier(
@@ -350,31 +320,18 @@ public class EcuCatalogMatcherTest {
                 );
 
         EcuDefinition definition =
-                new EcuDefinition(
-                        "Fiat",
-                        "Test Model",
-                        "1.9",
-                        "Bosch EDC16C39",
-                        "CAN",
-                        "",
-                        identifiers,
-                        Collections.emptyList()
+                createDefinition(
+                        identifiers
                 );
 
         EcuIdentification identification =
-                new EcuIdentification(
+                createIdentification(
                         "",
                         "PART-NEW",
                         "EDC17C49",
                         "SW-NEW",
                         "",
-                        "MARELLI",
-                        "",
-                        "",
-                        "",
-                        "",
-                        "",
-                        new LinkedHashMap<>()
+                        "MARELLI"
                 );
 
         EcuCatalogMatcher matcher =
@@ -397,17 +354,54 @@ public class EcuCatalogMatcherTest {
                 result.getScore()
         );
 
-        assertFalse(
-                result.isProbable()
-        );
-
-        assertFalse(
-                result.isExact()
-        );
-
         assertEquals(
                 null,
                 result.getEcuDefinition()
+        );
+    }
+
+    /**
+     * Crea una ECU di test.
+     */
+    private EcuDefinition createDefinition(
+            EcuDefinitionIdentifier identifiers) {
+
+        return new EcuDefinition(
+                "TEST",
+                "TEST_MODEL",
+                "TEST_ENGINE",
+                "TEST_ECU",
+                "CAN",
+                "",
+                identifiers,
+                Collections.emptyList()
+        );
+    }
+
+    /**
+     * Crea un'identificazione di test.
+     */
+    private EcuIdentification createIdentification(
+            String vin,
+            String partNumber,
+            String hardwareNumber,
+            String softwareNumber,
+            String softwareVersion,
+            String supplier) {
+
+        return new EcuIdentification(
+                vin,
+                partNumber,
+                hardwareNumber,
+                softwareNumber,
+                softwareVersion,
+                supplier,
+                "",
+                "",
+                "",
+                "",
+                "",
+                new LinkedHashMap<>()
         );
     }
 }
