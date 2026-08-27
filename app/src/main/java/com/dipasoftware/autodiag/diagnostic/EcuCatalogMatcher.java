@@ -89,22 +89,16 @@ public class EcuCatalogMatcher {
 
     /**
      * Confronta l'identificazione con il catalogo
-     * e restituisce tutti i candidati che hanno
-     * almeno una corrispondenza significativa.
+     * e restituisce tutti i candidati con almeno
+     * una corrispondenza.
      *
-     * IMPORTANTE:
-     *
-     * La lista dei candidati non utilizza la soglia
-     * PROBABLE_THRESHOLD.
-     *
-     * Questo permette al chiamante di vedere anche
-     * candidati deboli e utilizzare successivamente
-     * il punteggio per la classificazione.
+     * I candidati vengono ordinati per punteggio
+     * decrescente.
      *
      * @param identification identificazione letta.
-     * @param definitions ECU disponibili nel catalogo.
+     * @param definitions catalogo ECU.
      *
-     * @return candidati ordinati per punteggio decrescente.
+     * @return candidati ordinati.
      */
     @NonNull
     public List<EcuMatchCandidate> findCandidates(
@@ -126,10 +120,11 @@ public class EcuCatalogMatcher {
                     );
 
             /*
-             * Un candidato viene incluso se almeno un
-             * identificatore ha prodotto una corrispondenza.
+             * Il candidato viene conservato se esiste
+             * almeno una corrispondenza.
              *
-             * Un punteggio pari a zero non è un candidato.
+             * Non applichiamo qui la soglia PROBABLE.
+             * La classificazione viene fatta da match().
              */
             if (candidate.getScore() > 0) {
 
@@ -162,13 +157,15 @@ public class EcuCatalogMatcher {
     }
 
     /**
-     * Restituisce il miglior candidato classificato
-     * come EXACT, PROBABLE oppure NONE.
+     * Restituisce il miglior risultato del matching.
+     *
+     * Tiene conto anche dell'ambiguità tra candidati
+     * con lo stesso punteggio.
      *
      * @param identification identificazione letta.
      * @param definitions catalogo ECU.
      *
-     * @return risultato migliore.
+     * @return risultato.
      */
     @NonNull
     public EcuMatchResult match(
@@ -182,13 +179,20 @@ public class EcuCatalogMatcher {
                 );
 
         /*
-         * Nessun candidato con corrispondenze.
+         * ---------------------------------------------------------
+         * NESSUN CANDIDATO
+         * ---------------------------------------------------------
          */
+
         if (candidates.isEmpty()) {
 
             return new EcuMatchResult(
                     EcuMatchResult.Status.NONE,
                     null,
+                    0,
+                    0,
+                    false,
+                    0,
                     0
             );
         }
@@ -196,30 +200,48 @@ public class EcuCatalogMatcher {
         EcuMatchCandidate best =
                 candidates.get(0);
 
+        int bestScore =
+                best.getScore();
+
         /*
          * ---------------------------------------------------------
-         * AMBIGUITÀ
+         * SECONDO CANDIDATO
          * ---------------------------------------------------------
-         *
-         * Se due candidati hanno lo stesso punteggio,
-         * non selezioniamo automaticamente l'ECU.
-         *
-         * Il punteggio migliore viene comunque restituito
-         * per consentire alla UI di mostrare il risultato.
          */
-        if (candidates.size() > 1) {
+
+        int candidateCount =
+                candidates.size();
+
+        int secondBestScore =
+                0;
+
+        boolean ambiguous =
+                false;
+
+        int scoreGap =
+                bestScore;
+
+        if (candidateCount > 1) {
 
             EcuMatchCandidate second =
                     candidates.get(1);
 
-            if (best.getScore() ==
-                    second.getScore()) {
+            secondBestScore =
+                    second.getScore();
 
-                return new EcuMatchResult(
-                        EcuMatchResult.Status.PROBABLE,
-                        best.getEcuDefinition(),
-                        best.getScore()
-                );
+            scoreGap =
+                    bestScore
+                            - secondBestScore;
+
+            /*
+             * Due o più candidati con lo stesso punteggio
+             * rendono il risultato ambiguo.
+             */
+            if (bestScore ==
+                    secondBestScore) {
+
+                ambiguous =
+                        true;
             }
         }
 
@@ -227,71 +249,74 @@ public class EcuCatalogMatcher {
          * ---------------------------------------------------------
          * NESSUN MATCH SIGNIFICATIVO
          * ---------------------------------------------------------
-         *
-         * Manteniamo il punteggio reale.
-         *
-         * Esempio:
-         *
-         * supplier = 10
-         * VIN      = 10
-         * totale   = 20
-         *
-         * risultato:
-         *
-         * NONE
-         * score = 20
          */
-        if (best.getScore() <
+
+        if (bestScore <
                 PROBABLE_THRESHOLD) {
 
             return new EcuMatchResult(
                     EcuMatchResult.Status.NONE,
                     null,
-                    best.getScore()
+                    bestScore,
+                    candidateCount,
+                    ambiguous,
+                    secondBestScore,
+                    scoreGap
             );
         }
 
         /*
          * ---------------------------------------------------------
-         * MATCH ESATTO
+         * EXACT
          * ---------------------------------------------------------
          *
-         * Per EXACT deve essere presente almeno un
-         * identificatore ECU forte:
+         * Un EXACT richiede un identificatore forte:
          *
          * - hardware;
          * - software;
          * - part number.
          *
-         * Supplier e VIN da soli non bastano.
+         * Inoltre il risultato NON deve essere ambiguo.
          */
         if (best.hasStrongIdentifierMatch()
                 &&
-                best.getScore() >=
-                        EXACT_THRESHOLD) {
+                bestScore >=
+                        EXACT_THRESHOLD
+                &&
+                !ambiguous) {
 
             return new EcuMatchResult(
                     EcuMatchResult.Status.EXACT,
                     best.getEcuDefinition(),
-                    best.getScore()
+                    bestScore,
+                    candidateCount,
+                    false,
+                    secondBestScore,
+                    scoreGap
             );
         }
 
         /*
          * ---------------------------------------------------------
-         * MATCH PROBABILE
+         * PROBABLE / AMBIGUO
          * ---------------------------------------------------------
+         *
+         * Anche un candidato con punteggio alto ma ambiguo
+         * rimane PROBABLE.
          */
-
         return new EcuMatchResult(
                 EcuMatchResult.Status.PROBABLE,
                 best.getEcuDefinition(),
-                best.getScore()
+                bestScore,
+                candidateCount,
+                ambiguous,
+                secondBestScore,
+                scoreGap
         );
     }
 
     /**
-     * Crea il candidato per una specifica ECU.
+     * Costruisce il candidato per una ECU.
      *
      * @param identification identificazione letta.
      * @param definition ECU catalogata.

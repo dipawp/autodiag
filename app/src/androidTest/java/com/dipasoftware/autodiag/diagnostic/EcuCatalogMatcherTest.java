@@ -404,4 +404,173 @@ public class EcuCatalogMatcherTest {
                 new LinkedHashMap<>()
         );
     }
+
+
+    /**
+     * Verifica che un risultato con due candidati
+     * allo stesso punteggio venga classificato come ambiguo.
+     */
+    @Test
+    public void equalBestScoresProduceAmbiguousResult() {
+
+        EcuDefinition first =
+                createDefinition(
+                        new EcuDefinitionIdentifier(
+                                Collections.singletonList(
+                                        "EDC17C49"
+                                ),
+                                Collections.emptyList(),
+                                Collections.emptyList(),
+                                Collections.emptyList(),
+                                Collections.emptyList()
+                        )
+                );
+
+        EcuDefinition second =
+                createDefinition(
+                        new EcuDefinitionIdentifier(
+                                Collections.singletonList(
+                                        "EDC17C49"
+                                ),
+                                Collections.emptyList(),
+                                Collections.emptyList(),
+                                Collections.emptyList(),
+                                Collections.emptyList()
+                        )
+                );
+
+        EcuIdentification identification =
+                createIdentification(
+                        "",
+                        "",
+                        "EDC17C49",
+                        "",
+                        "",
+                        ""
+                );
+
+        EcuCatalogMatcher matcher =
+                new EcuCatalogMatcher();
+
+        EcuMatchResult result =
+                matcher.match(
+                        identification,
+                        Arrays.asList(
+                                first,
+                                second
+                        )
+                );
+
+        assertTrue(
+                result.isAmbiguous()
+        );
+
+        assertEquals(
+                2,
+                result.getCandidateCount()
+        );
+
+        assertEquals(
+                50,
+                result.getScore()
+        );
+
+        assertEquals(
+                50,
+                result.getSecondBestScore()
+        );
+
+        assertEquals(
+                0,
+                result.getScoreGap()
+        );
+
+        assertFalse(
+                result.isAutoSelectionSafe()
+        );
+
+        assertTrue(
+                result.requiresUserConfirmation()
+        );
+    }
+
+    /**
+     * Verifica che un EXACT non ambiguo possa essere
+     * selezionato automaticamente.
+     */
+    @Test
+    public void exactNonAmbiguousMatchIsAutoSelectionSafe() {
+
+        EcuDefinition definition =
+                createDefinition(
+                        new EcuDefinitionIdentifier(
+                                Collections.singletonList(
+                                        "EDC17C49"
+                                ),
+                                Collections.singletonList(
+                                        "SW-001"
+                                ),
+                                Collections.emptyList(),
+                                Collections.emptyList(),
+                                Collections.emptyList()
+                        )
+                );
+
+        EcuIdentification identification =
+                createIdentification(
+                        "",
+                        "",
+                        "EDC17C49",
+                        "SW-001",
+                        "",
+                        ""
+                );
+
+        EcuCatalogMatcher matcher =
+                new EcuCatalogMatcher();
+
+        EcuMatchResult result =
+                matcher.match(
+                        identification,
+                        Collections.singletonList(
+                                definition
+                        )
+                );
+
+        assertTrue(
+                result.isExact()
+        );
+
+        assertFalse(
+                result.isAmbiguous()
+        );
+
+        assertEquals(
+                1,
+                result.getCandidateCount()
+        );
+
+        assertEquals(
+                80,
+                result.getScore()
+        );
+
+        assertEquals(
+                80,
+                result.getScoreGap()
+        );
+
+        assertEquals(
+                0,
+                result.getSecondBestScore()
+        );
+
+        assertTrue(
+                result.isAutoSelectionSafe()
+        );
+
+        assertFalse(
+                result.requiresUserConfirmation()
+        );
+    }
 }
