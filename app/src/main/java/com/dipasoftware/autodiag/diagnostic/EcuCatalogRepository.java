@@ -495,6 +495,17 @@ public class EcuCatalogRepository {
                         identifiersObject
                 );
 
+
+        JSONArray identificationArray =
+                object.optJSONArray(
+                        "identification"
+                );
+
+        List<EcuIdentificationDefinition> identification =
+                parseIdentificationDefinitions(
+                        identificationArray
+                );
+
         /*
          * ---------------------------------------------------------
          * DATASET
@@ -543,6 +554,7 @@ public class EcuCatalogRepository {
                 protocol,
                 pidFile,
                 identifiers,
+                identification,
                 datasets
         );
     }
@@ -804,5 +816,105 @@ public class EcuCatalogRepository {
                 .toUpperCase(
                         Locale.US
                 );
+    }
+
+    /**
+     * Converte il blocco JSON "identification"
+     * nelle definizioni utilizzate per la discovery ECU.
+     *
+     * Il blocco è opzionale.
+     *
+     * @param array array JSON.
+     *
+     * @return lista delle definizioni.
+     *
+     * @throws JSONException JSON non valido.
+     */
+    @NonNull
+    private List<EcuIdentificationDefinition>
+    parseIdentificationDefinitions(
+            @Nullable JSONArray array)
+            throws JSONException {
+
+        if (array == null) {
+
+            return Collections.emptyList();
+        }
+
+        List<EcuIdentificationDefinition> result =
+                new ArrayList<>();
+
+        for (
+                int index = 0;
+                index < array.length();
+                index++
+        ) {
+
+            JSONObject object =
+                    array.optJSONObject(
+                            index
+                    );
+
+            if (object == null) {
+
+                continue;
+            }
+
+            String service =
+                    requireString(
+                            object,
+                            "service"
+                    );
+
+            String did =
+                    requireString(
+                            object,
+                            "did"
+                    );
+
+            String field =
+                    requireString(
+                            object,
+                            "field"
+                    );
+
+            String decoder =
+                    requireString(
+                            object,
+                            "decoder"
+                    );
+
+            boolean required =
+                    object.optBoolean(
+                            "required",
+                            false
+                    );
+
+            int byteOffset =
+                    object.optInt(
+                            "byteOffset",
+                            0
+                    );
+
+            int byteLength =
+                    object.optInt(
+                            "byteLength",
+                            0
+                    );
+
+            result.add(
+                    new EcuIdentificationDefinition(
+                            service,
+                            did,
+                            field,
+                            decoder,
+                            required,
+                            byteOffset,
+                            byteLength
+                    )
+            );
+        }
+
+        return result;
     }
 }

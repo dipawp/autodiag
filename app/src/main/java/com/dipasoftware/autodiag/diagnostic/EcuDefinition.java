@@ -32,24 +32,14 @@ import java.util.List;
  *
  * I PID sono contenuti nei DiagnosticDataset associati alla ECU.
  *
- * Gli identificativi utilizzati per il riconoscimento automatico
- * della ECU sono contenuti in EcuDefinitionIdentifier.
+ * La classe contiene inoltre:
  *
- * Struttura concettuale:
+ * - identifiers:
+ *     identificativi con cui riconoscere la ECU;
  *
- * Veicolo
- *     |
- *     +-- marca
- *     +-- modello
- *     +-- motore
- *     |
- *     +-- ECU
- *          |
- *          +-- identificativo ECU
- *          +-- protocollo
- *          +-- identificativi compatibili
- *          |
- *          +-- dataset diagnostici
+ * - identification:
+ *     istruzioni catalogate su quali identificatori diagnostici
+ *     leggere durante la discovery automatica.
  *
  * ****************************************************************************
  */
@@ -57,13 +47,6 @@ public class EcuDefinition {
 
     /**
      * Marca commerciale del veicolo.
-     *
-     * Esempi:
-     *
-     * Fiat
-     * Alfa Romeo
-     * BMW
-     * Volkswagen
      */
     @NonNull
     private final String brand;
@@ -76,38 +59,18 @@ public class EcuDefinition {
 
     /**
      * Motore o variante propulsiva.
-     *
-     * Esempi:
-     *
-     * 1.9 JTD
-     * 1.6 Multijet
-     * 2.0 TDI
      */
     @NonNull
     private final String engine;
 
     /**
      * Identificativo della centralina.
-     *
-     * Esempi:
-     *
-     * Bosch EDC16C39
-     * Bosch EDC17C49
-     * Marelli MJD
      */
     @NonNull
     private final String ecu;
 
     /**
      * Protocollo diagnostico principale.
-     *
-     * Esempi:
-     *
-     * CAN
-     * ISO_15765_4_CAN
-     * KWP2000
-     * ISO_14230
-     * UDS
      */
     @NonNull
     private final String protocol;
@@ -115,47 +78,43 @@ public class EcuDefinition {
     /**
      * Percorso del dataset PID principale.
      *
-     * Questo campo viene mantenuto per compatibilità
-     * con la struttura precedente.
-     *
-     * Nei nuovi cataloghi il campo può essere lasciato vuoto
-     * quando vengono utilizzati esclusivamente i dataset
-     * definiti nell'elenco datasets.
+     * Mantenuto per compatibilità.
      */
     @NonNull
     private final String pidFile;
 
     /**
      * Identificativi utilizzabili per il riconoscimento
-     * automatico della ECU.
-     *
-     * Contiene:
-     *
-     * - hardware numbers;
-     * - software numbers;
-     * - part numbers;
-     * - suppliers;
-     * - VIN patterns.
+     * della ECU.
      */
     @NonNull
     private final EcuDefinitionIdentifier identifiers;
 
     /**
-     * Elenco dei dataset diagnostici associati all'ECU.
+     * Definizioni utilizzabili durante la fase
+     * di identificazione automatica.
      *
-     * Esempi:
+     * Ogni elemento descrive:
      *
-     * STANDARD_OBD
-     * OEM_PID
-     * UDS_DID
+     * - service;
+     * - DID;
+     * - campo destinazione;
+     * - decoder;
+     * - obbligatorietà;
+     * - offset;
+     * - lunghezza.
+     */
+    @NonNull
+    private final List<EcuIdentificationDefinition> identification;
+
+    /**
+     * Dataset diagnostici associati all'ECU.
      */
     @NonNull
     private final List<DiagnosticDataset> datasets;
 
     /**
      * Costruttore compatibile con la versione originale.
-     *
-     * Non definisce identificativi specifici.
      *
      * @param brand marca.
      * @param model modello.
@@ -180,6 +139,7 @@ public class EcuDefinition {
                 protocol,
                 pidFile,
                 new EcuDefinitionIdentifier(),
+                Collections.emptyList(),
                 Collections.emptyList()
         );
     }
@@ -213,15 +173,14 @@ public class EcuDefinition {
                 protocol,
                 pidFile,
                 new EcuDefinitionIdentifier(),
+                Collections.emptyList(),
                 datasets
         );
     }
 
     /**
-     * Costruttore completo.
-     *
-     * Permette di definire sia gli identificativi utilizzabili
-     * per il matching automatico sia i dataset diagnostici.
+     * Costruttore compatibile con la versione precedente
+     * che supporta gli identificativi ECU.
      *
      * @param brand marca.
      * @param model modello.
@@ -240,6 +199,43 @@ public class EcuDefinition {
             @NonNull String protocol,
             @NonNull String pidFile,
             @NonNull EcuDefinitionIdentifier identifiers,
+            @NonNull List<DiagnosticDataset> datasets) {
+
+        this(
+                brand,
+                model,
+                engine,
+                ecu,
+                protocol,
+                pidFile,
+                identifiers,
+                Collections.emptyList(),
+                datasets
+        );
+    }
+
+    /**
+     * Costruttore completo.
+     *
+     * @param brand marca.
+     * @param model modello.
+     * @param engine motore.
+     * @param ecu centralina.
+     * @param protocol protocollo.
+     * @param pidFile dataset principale.
+     * @param identifiers identificativi ECU.
+     * @param identification strategia identificazione.
+     * @param datasets dataset diagnostici.
+     */
+    public EcuDefinition(
+            @NonNull String brand,
+            @NonNull String model,
+            @NonNull String engine,
+            @NonNull String ecu,
+            @NonNull String protocol,
+            @NonNull String pidFile,
+            @NonNull EcuDefinitionIdentifier identifiers,
+            @NonNull List<EcuIdentificationDefinition> identification,
             @NonNull List<DiagnosticDataset> datasets) {
 
         this.brand =
@@ -262,6 +258,11 @@ public class EcuDefinition {
 
         this.identifiers =
                 identifiers;
+
+        this.identification =
+                Collections.unmodifiableList(
+                        identification
+                );
 
         this.datasets =
                 Collections.unmodifiableList(
@@ -336,8 +337,7 @@ public class EcuDefinition {
     }
 
     /**
-     * Restituisce gli identificativi catalogati
-     * per il riconoscimento automatico della ECU.
+     * Restituisce gli identificativi catalogati.
      *
      * @return identificativi ECU.
      */
@@ -348,9 +348,43 @@ public class EcuDefinition {
     }
 
     /**
+     * Indica se esistono identificativi catalogati.
+     *
+     * @return true se presenti.
+     */
+    public boolean hasIdentifiers() {
+
+        return !identifiers.isEmpty();
+    }
+
+    /**
+     * Restituisce le definizioni utilizzate
+     * durante l'identificazione automatica.
+     *
+     * @return lista immutabile.
+     */
+    @NonNull
+    public List<EcuIdentificationDefinition>
+    getIdentificationDefinitions() {
+
+        return identification;
+    }
+
+    /**
+     * Indica se è stata definita una strategia
+     * di identificazione automatica.
+     *
+     * @return true se presente almeno una voce.
+     */
+    public boolean hasIdentificationDefinitions() {
+
+        return !identification.isEmpty();
+    }
+
+    /**
      * Restituisce tutti i dataset associati alla ECU.
      *
-     * @return lista immutabile dei dataset.
+     * @return lista immutabile.
      */
     @NonNull
     public List<DiagnosticDataset> getDatasets() {
@@ -426,17 +460,6 @@ public class EcuDefinition {
     }
 
     /**
-     * Restituisce true quando sono presenti identificativi
-     * utilizzabili per il matching automatico.
-     *
-     * @return true se almeno un identificativo è disponibile.
-     */
-    public boolean hasIdentifiers() {
-
-        return !identifiers.isEmpty();
-    }
-
-    /**
      * Restituisce la rappresentazione testuale della ECU.
      *
      * @return descrizione ECU.
@@ -466,6 +489,8 @@ public class EcuDefinition {
                 '\'' +
                 ", identifiers=" +
                 identifiers +
+                ", identification=" +
+                identification.size() +
                 ", datasets=" +
                 datasets.size() +
                 '}';

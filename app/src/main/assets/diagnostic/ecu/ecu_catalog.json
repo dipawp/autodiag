@@ -1,5 +1,5 @@
 {
-  "version": "1.1",
+  "version": "1.2",
   "description": "Catalogo ECU diagnostiche",
 
   "ecus": [
@@ -28,6 +28,51 @@
           "TESTVIN"
         ]
       },
+
+      "identification": [
+        {
+          "service": "22",
+          "did": "F190",
+          "field": "vin",
+          "decoder": "STRING",
+          "required": false
+        },
+        {
+          "service": "22",
+          "did": "F187",
+          "field": "ecuPartNumber",
+          "decoder": "STRING",
+          "required": false
+        },
+        {
+          "service": "22",
+          "did": "F188",
+          "field": "ecuSoftwareNumber",
+          "decoder": "STRING",
+          "required": false
+        },
+        {
+          "service": "22",
+          "did": "F189",
+          "field": "ecuSoftwareVersion",
+          "decoder": "STRING",
+          "required": false
+        },
+        {
+          "service": "22",
+          "did": "F191",
+          "field": "ecuHardwareNumber",
+          "decoder": "STRING",
+          "required": false
+        },
+        {
+          "service": "22",
+          "did": "F18A",
+          "field": "supplier",
+          "decoder": "STRING",
+          "required": false
+        }
+      ],
 
       "datasets": [
         {

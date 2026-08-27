@@ -321,4 +321,76 @@ public class EcuCatalogRepositoryTest {
                 definition.getIdentifiers().isEmpty()
         );
     }
+
+
+
+    /**
+     * Verifica il caricamento della strategia
+     * di identificazione ECU dal catalogo.
+     */
+    @Test
+    public void loadIdentificationDefinitions()
+            throws Exception {
+
+        Context context =
+                ApplicationProvider
+                        .getApplicationContext();
+
+        EcuCatalogRepository repository =
+                new EcuCatalogRepository(
+                        context
+                );
+
+        EcuDefinition ecu =
+                repository.find(
+                        "TEST",
+                        "TEST_MODEL",
+                        "TEST_ENGINE",
+                        "TEST_ECU"
+                );
+
+        assertNotNull(
+                ecu
+        );
+
+        assertTrue(
+                ecu.hasIdentificationDefinitions()
+        );
+
+        List<EcuIdentificationDefinition> definitions =
+                ecu.getIdentificationDefinitions();
+
+        assertEquals(
+                6,
+                definitions.size()
+        );
+
+        EcuIdentificationDefinition vin =
+                definitions.get(0);
+
+        assertEquals(
+                "22",
+                vin.getService()
+        );
+
+        assertEquals(
+                "F190",
+                vin.getDid()
+        );
+
+        assertEquals(
+                "vin",
+                vin.getField()
+        );
+
+        assertEquals(
+                "STRING",
+                vin.getDecoder()
+        );
+
+        assertEquals(
+                "22F190",
+                vin.buildRequest()
+        );
+    }
 }

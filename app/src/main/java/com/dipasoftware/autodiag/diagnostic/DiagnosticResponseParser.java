@@ -43,6 +43,14 @@ public class DiagnosticResponseParser {
     @NonNull
     private final UdsResponseParser udsResponseParser;
 
+
+    /**
+     * Parser OBD-II Mode 09.
+     */
+    @NonNull
+    private final ObdVehicleInformationParser
+            obdVehicleInformationParser;
+
     /**
      * Costruttore.
      */
@@ -53,6 +61,9 @@ public class DiagnosticResponseParser {
 
         this.udsResponseParser =
                 new UdsResponseParser();
+
+        this.obdVehicleInformationParser =
+                new ObdVehicleInformationParser();
     }
 
     /**
@@ -170,6 +181,79 @@ public class DiagnosticResponseParser {
 
         return DiagnosticResponseResult.fromUds(
                 udsResponse
+        );
+    }
+
+
+    /**
+     * Analizza una risposta OBD-II Mode 09.
+     *
+     * Attualmente supporta esclusivamente 09 02 VIN.
+     *
+     * @param response risposta.
+     * @param request richiesta.
+     *
+     * @return risultato normalizzato.
+     */
+    @NonNull
+    private DiagnosticResponseResult parseVehicleInformation(
+            @NonNull String response,
+            @NonNull String request) {
+
+        String normalizedRequest =
+                request
+                        .replace(
+                                " ",
+                                ""
+                        )
+                        .replace(
+                                "\r",
+                                ""
+                        )
+                        .replace(
+                                "\n",
+                                ""
+                        )
+                        .replace(
+                                ">",
+                                ""
+                        )
+                        .trim()
+                        .toUpperCase();
+
+        if (!"0902".equals(
+                normalizedRequest
+        )) {
+
+            throw new IllegalArgumentException(
+                    "Mode 09 non ancora supportato "
+                            + "per request "
+                            + request
+            );
+        }
+
+        ObdVehicleInformationParser
+                .VehicleInformationResponse parsed =
+                obdVehicleInformationParser
+                        .parseVin(
+                                response,
+                                request
+                        );
+
+        byte[] data =
+                parsed.getVin()
+                        .getBytes(
+                                java.nio.charset.StandardCharsets
+                                        .US_ASCII
+                        );
+
+        return new DiagnosticResponseResult(
+                "OBD",
+                parsed.getService(),
+                parsed.getPid(),
+                data,
+                true,
+                -1
         );
     }
 }

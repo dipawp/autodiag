@@ -1,0 +1,436 @@
+package com.dipasoftware.autodiag.diagnostic;
+
+import androidx.annotation.NonNull;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * ****************************************************************************
+ *
+ * Classe.....: ObdVehicleInformationParser
+ *
+ * Tipo.......: Parser
+ *
+ * Package....: com.dipasoftware.autodiag.diagnostic
+ *
+ * Descrizione:
+ *
+ * Analizza le risposte OBD-II Mode 09 utilizzate per ottenere
+ * informazioni del veicolo.
+ *
+ * Attualmente supporta:
+ *
+ *     09 02 = VIN
+ *
+ * Risposta positiva:
+ *
+ *     49 02 ...
+ *
+ * Il parser è volutamente separato da ObdResponseParser perché
+ * Mode 09 può utilizzare una risposta multi-frame e non ha la
+ * stessa struttura del normale PID Mode 01.
+ *
+ * ****************************************************************************
+ */
+public class ObdVehicleInformationParser {
+
+    /**
+     * Service positivo Mode 09.
+     */
+    private static final int POSITIVE_SERVICE =
+            0x49;
+
+    /**
+     * PID VIN.
+     */
+    private static final int VIN_PID =
+            0x02;
+
+    /**
+     * Analizza una risposta Mode 09 PID 02.
+     *
+     * @param response risposta ELM327.
+     * @param expectedRequest richiesta attesa.
+     *
+     * @return risultato VIN.
+     *
+     * @throws IllegalArgumentException risposta non valida.
+     */
+    @NonNull
+    public VehicleInformationResponse parseVin(
+            @NonNull String response,
+            @NonNull String expectedRequest) {
+
+        List<Integer> bytes =
+                parseHexBytes(
+                        response
+                );
+
+        if (bytes.isEmpty()) {
+
+            throw new IllegalArgumentException(
+                    "Risposta Mode 09 vuota."
+            );
+        }
+
+        String request =
+                normalizeHex(
+                        expectedRequest
+                );
+
+        if (!"0902".equals(
+                request
+        )) {
+
+            throw new IllegalArgumentException(
+                    "Richiesta VIN non valida: "
+                            + expectedRequest
+            );
+        }
+
+        /*
+         * Cerchiamo le occorrenze positive 49 02.
+         *
+         * In una risposta multi-frame ELM327 il contenuto
+         * può essere presentato su più righe.
+         */
+        List<Byte> vinBytes =
+                new ArrayList<>();
+
+        boolean foundResponse =
+                false;
+
+        for (int index = 0;
+             index < bytes.size() - 1;
+             index++) {
+
+            if (bytes.get(index) ==
+                    POSITIVE_SERVICE
+                    &&
+                    bytes.get(index + 1) ==
+                            VIN_PID) {
+
+                foundResponse =
+                        true;
+
+                int dataStart =
+                        index + 2;
+
+                for (
+                        int dataIndex = dataStart;
+                        dataIndex < bytes.size();
+                        dataIndex++
+                ) {
+
+                    /*
+                     * Se ricompare 49 02 significa
+                     * l'inizio di un altro segmento.
+                     */
+                    if (dataIndex < bytes.size() - 1
+                            &&
+                            bytes.get(dataIndex) ==
+                                    POSITIVE_SERVICE
+                            &&
+                            bytes.get(dataIndex + 1) ==
+                                    VIN_PID) {
+
+                        break;
+                    }
+
+                    vinBytes.add(
+                            (byte)
+                                    (bytes.get(
+                                            dataIndex
+                                    ) & 0xFF)
+                    );
+                }
+            }
+        }
+
+        if (!foundResponse) {
+
+            throw new IllegalArgumentException(
+                    "Risposta VIN non riconosciuta: "
+                            + response
+            );
+        }
+
+        /*
+         * Alcune implementazioni possono lasciare
+         * byte di padding iniziali.
+         *
+         * Conserviamo solamente caratteri ASCII
+         * compatibili con un VIN.
+         */
+        StringBuilder vin =
+                new StringBuilder();
+
+        for (Byte value :
+                vinBytes
+        ) {
+
+            int current =
+                    value & 0xFF;
+
+            if (isVinCharacter(
+                    current
+            )) {
+
+                vin.append(
+                        (char) current
+                );
+
+                if (vin.length() == 17) {
+
+                    break;
+                }
+            }
+        }
+
+        String result =
+                vin.toString().trim();
+
+        if (result.length() != 17) {
+
+            throw new IllegalArgumentException(
+                    "VIN non valido o incompleto. "
+                            + "Lunghezza: "
+                            + result.length()
+            );
+        }
+
+        return new VehicleInformationResponse(
+                0x49,
+                0x02,
+                result
+        );
+    }
+
+    /**
+     * Converte la risposta ELM327 in byte.
+     *
+     * Vengono considerati solamente token HEX a due caratteri.
+     *
+     * @param response risposta.
+     *
+     * @return byte.
+     */
+    @NonNull
+    private List<Integer> parseHexBytes(
+            @NonNull String response) {
+
+        List<Integer> bytes =
+                new ArrayList<>();
+
+        String normalized =
+                response
+                        .replace(
+                                "\r",
+                                " "
+                        )
+                        .replace(
+                                "\n",
+                                " "
+                        )
+                        .replace(
+                                ">",
+                                " "
+                        )
+                        .trim();
+
+        if (normalized.isEmpty()) {
+
+            return bytes;
+        }
+
+        String[] tokens =
+                normalized.split(
+                        "\\s+"
+                );
+
+        for (
+                String token :
+                tokens
+        ) {
+
+            if (token == null) {
+
+                continue;
+            }
+
+            String clean =
+                    token.trim();
+
+            if (clean.length() != 2) {
+
+                continue;
+            }
+
+            if (!isHexByte(
+                    clean
+            )) {
+
+                continue;
+            }
+
+            try {
+
+                bytes.add(
+                        Integer.parseInt(
+                                clean,
+                                16
+                        )
+                );
+
+            } catch (
+                    NumberFormatException ignored) {
+
+                // Token ignorato.
+            }
+        }
+
+        return bytes;
+    }
+
+    /**
+     * Verifica se un byte può appartenere al VIN.
+     *
+     * Sono ammessi caratteri alfanumerici VIN standard.
+     *
+     * @param value byte.
+     *
+     * @return true se valido.
+     */
+    private boolean isVinCharacter(
+            int value) {
+
+        return value >= '0'
+                && value <= '9'
+                ||
+                value >= 'A'
+                        && value <= 'Z';
+    }
+
+    /**
+     * Verifica un byte HEX.
+     */
+    private boolean isHexByte(
+            @NonNull String value) {
+
+        if (value.length() != 2) {
+
+            return false;
+        }
+
+        for (
+                int index = 0;
+                index < value.length();
+                index++
+        ) {
+
+            char character =
+                    Character.toUpperCase(
+                            value.charAt(index)
+                    );
+
+            boolean valid =
+                    character >= '0'
+                            && character <= '9'
+                            ||
+                            character >= 'A'
+                                    && character <= 'F';
+
+            if (!valid) {
+
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Normalizza una richiesta HEX.
+     */
+    @NonNull
+    private String normalizeHex(
+            @NonNull String value) {
+
+        return value
+                .replace(
+                        " ",
+                        ""
+                )
+                .replace(
+                        "\r",
+                        ""
+                )
+                .replace(
+                        "\n",
+                        ""
+                )
+                .replace(
+                        ">",
+                        ""
+                )
+                .trim()
+                .toUpperCase();
+    }
+
+    /**
+     * Risultato del parsing Mode 09.
+     */
+    public static class VehicleInformationResponse {
+
+        /**
+         * Service positivo.
+         */
+        private final int service;
+
+        /**
+         * PID.
+         */
+        private final int pid;
+
+        /**
+         * VIN.
+         */
+        @NonNull
+        private final String vin;
+
+        /**
+         * Costruttore.
+         */
+        public VehicleInformationResponse(
+                int service,
+                int pid,
+                @NonNull String vin) {
+
+            this.service =
+                    service;
+
+            this.pid =
+                    pid;
+
+            this.vin =
+                    vin;
+        }
+
+        public int getService() {
+
+            return service;
+        }
+
+        public int getPid() {
+
+            return pid;
+        }
+
+        @NonNull
+        public String getVin() {
+
+            return vin;
+        }
+    }
+}

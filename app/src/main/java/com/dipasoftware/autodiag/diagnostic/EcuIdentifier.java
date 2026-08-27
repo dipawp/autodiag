@@ -4,6 +4,8 @@ import androidx.annotation.NonNull;
 
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -18,85 +20,41 @@ import java.util.Map;
  * Descrizione:
  *
  * Raccoglie informazioni identificative dalla ECU utilizzando
- * esclusivamente richieste diagnostiche di lettura.
+ * esclusivamente le definizioni presenti nel catalogo ECU.
+ *
+ * La classe NON contiene DID hardcoded.
+ *
+ * La strategia di identificazione viene definita da:
+ *
+ * EcuDefinition
+ *      |
+ *      +-- identification[]
+ *              |
+ *              +-- service
+ *              +-- did
+ *              +-- field
+ *              +-- decoder
+ *              +-- required
+ *              +-- byteOffset
+ *              +-- byteLength
+ *
+ * Le richieste vengono eseguite tramite DiagnosticPidExecutor,
+ * che applica automaticamente la ReadOnlyDiagnosticPolicy.
  *
  * La classe NON identifica direttamente marca/modello/ECU.
  *
  * Produce invece EcuIdentification, che verrà successivamente
- * confrontato con il catalogo tramite EcuCatalogRepository.
+ * confrontato con il catalogo tramite EcuCatalogMatcher.
  *
  * ****************************************************************************
  */
 public class EcuIdentifier {
 
     /**
-     * DID VIN.
-     */
-    private static final String DID_VIN =
-            "F190";
-
-    /**
-     * DID ECU part number.
-     */
-    private static final String DID_ECU_PART_NUMBER =
-            "F187";
-
-    /**
-     * DID ECU software number.
-     */
-    private static final String DID_ECU_SOFTWARE_NUMBER =
-            "F188";
-
-    /**
-     * DID ECU software version.
-     */
-    private static final String DID_ECU_SOFTWARE_VERSION =
-            "F189";
-
-    /**
-     * DID system supplier.
-     */
-    private static final String DID_SUPPLIER =
-            "F18A";
-
-    /**
-     * DID ECU serial number.
-     */
-    private static final String DID_SERIAL_NUMBER =
-            "F18C";
-
-    /**
-     * DID ECU hardware number.
-     */
-    private static final String DID_ECU_HARDWARE_NUMBER =
-            "F191";
-
-    /**
-     * DID supplier hardware number.
-     */
-    private static final String DID_SUPPLIER_HARDWARE =
-            "F192";
-
-    /**
-     * DID supplier software number.
-     */
-    private static final String DID_SUPPLIER_SOFTWARE =
-            "F194";
-
-    /**
-     * DID supplier software version.
-     */
-    private static final String DID_SUPPLIER_SOFTWARE_VERSION =
-            "F195";
-
-    /**
-     * DID system name / engine type.
-     */
-    private static final String DID_SYSTEM_NAME =
-            "F197";
-
-    /**
      * Esecutore delle richieste diagnostiche.
+     *
+     * DiagnosticPidExecutor garantisce che la richiesta
+     * passi attraverso ReadOnlyDiagnosticPolicy.
      */
     @NonNull
     private final DiagnosticPidExecutor executor;
@@ -114,85 +72,190 @@ public class EcuIdentifier {
     }
 
     /**
-     * Esegue la procedura di identificazione ECU.
+     * Esegue l'identificazione utilizzando esclusivamente
+     * le definizioni presenti nel catalogo ECU.
      *
-     * Tutte le richieste utilizzate dalla procedura passano
-     * attraverso DiagnosticPidExecutor e quindi attraverso
-     * ReadOnlyDiagnosticPolicy.
+     * Nessun DID è definito direttamente nel codice.
      *
-     * Una singola DID non disponibile NON interrompe
-     * l'intera identificazione.
+     * Una singola lettura non disponibile non interrompe
+     * l'intero processo.
+     *
+     * @param ecuDefinition definizione ECU del catalogo.
      *
      * @return informazioni identificate.
      */
     @NonNull
-    public EcuIdentification identify() {
+    public EcuIdentification identify(
+            @NonNull EcuDefinition ecuDefinition) {
 
         String vin =
-                readTextDid(
-                        DID_VIN
-                );
+                "";
 
         String ecuPartNumber =
-                readTextDid(
-                        DID_ECU_PART_NUMBER
-                );
-
-        String ecuSoftwareNumber =
-                readTextDid(
-                        DID_ECU_SOFTWARE_NUMBER
-                );
-
-        String ecuSoftwareVersion =
-                readTextDid(
-                        DID_ECU_SOFTWARE_VERSION
-                );
-
-        String supplier =
-                readTextDid(
-                        DID_SUPPLIER
-                );
-
-        String serialNumber =
-                readTextDid(
-                        DID_SERIAL_NUMBER
-                );
+                "";
 
         String ecuHardwareNumber =
-                readTextDid(
-                        DID_ECU_HARDWARE_NUMBER
-                );
+                "";
+
+        String ecuSoftwareNumber =
+                "";
+
+        String ecuSoftwareVersion =
+                "";
+
+        String supplier =
+                "";
+
+        String serialNumber =
+                "";
 
         String supplierHardwareNumber =
-                readTextDid(
-                        DID_SUPPLIER_HARDWARE
-                );
+                "";
 
         String supplierSoftwareNumber =
-                readTextDid(
-                        DID_SUPPLIER_SOFTWARE
-                );
+                "";
 
         String supplierSoftwareVersion =
-                readTextDid(
-                        DID_SUPPLIER_SOFTWARE_VERSION
-                );
+                "";
 
         String systemName =
-                readTextDid(
-                        DID_SYSTEM_NAME
-                );
+                "";
 
-        Map<String, String> additional =
+        Map<String, String> additionalIdentifiers =
                 new LinkedHashMap<>();
 
-        /*
-         * Per ora i DID conosciuti vengono mappati
-         * nei campi principali di EcuIdentification.
-         *
-         * La mappa aggiuntiva rimane disponibile per
-         * future estensioni senza modificare il modello.
-         */
+        List<EcuIdentificationDefinition> definitions =
+                ecuDefinition.getIdentificationDefinitions();
+
+        for (
+                EcuIdentificationDefinition definition :
+                definitions
+        ) {
+
+            String value =
+                    readIdentificationDefinition(
+                            definition
+                    );
+
+            if (value.isEmpty()) {
+
+                /*
+                 * Il DID può non essere supportato dalla ECU.
+                 *
+                 * Non interrompiamo l'identificazione.
+                 */
+                continue;
+            }
+
+            String field =
+                    definition.getField()
+                            .trim();
+
+            /*
+             * ---------------------------------------------------------
+             * CAMPI STANDARD DI EcuIdentification
+             * ---------------------------------------------------------
+             */
+
+            switch (
+                    field.toLowerCase(
+                            Locale.US
+                    )
+            ) {
+
+                case "vin":
+
+                    vin =
+                            value;
+
+                    break;
+
+                case "ecupartnumber":
+
+                    ecuPartNumber =
+                            value;
+
+                    break;
+
+                case "ecuhardwarenumber":
+
+                    ecuHardwareNumber =
+                            value;
+
+                    break;
+
+                case "ecusoftwarenumber":
+
+                    ecuSoftwareNumber =
+                            value;
+
+                    break;
+
+                case "ecusoftwareversion":
+
+                    ecuSoftwareVersion =
+                            value;
+
+                    break;
+
+                case "supplier":
+
+                    supplier =
+                            value;
+
+                    break;
+
+                case "serialnumber":
+
+                    serialNumber =
+                            value;
+
+                    break;
+
+                case "supplierhardwarenumber":
+
+                    supplierHardwareNumber =
+                            value;
+
+                    break;
+
+                case "suppliersoftwarenumber":
+
+                    supplierSoftwareNumber =
+                            value;
+
+                    break;
+
+                case "suppliersoftwareversion":
+
+                    supplierSoftwareVersion =
+                            value;
+
+                    break;
+
+                case "systemname":
+
+                    systemName =
+                            value;
+
+                    break;
+
+                default:
+
+                    /*
+                     * Campo specifico OEM/non ancora conosciuto
+                     * dal modello principale.
+                     *
+                     * Viene mantenuto senza perdita di informazione.
+                     */
+                    additionalIdentifiers.put(
+                            definition.getDid(),
+                            value
+                    );
+
+                    break;
+            }
+        }
 
         return new EcuIdentification(
                 vin,
@@ -206,40 +269,84 @@ public class EcuIdentifier {
                 supplierSoftwareNumber,
                 supplierSoftwareVersion,
                 systemName,
-                additional
+                additionalIdentifiers
         );
     }
 
     /**
-     * Legge un DID UDS e lo interpreta come stringa.
+     * Versione semplificata mantenuta per compatibilità
+     * con eventuale codice precedente.
      *
-     * Viene utilizzata la richiesta:
+     * Non esistendo più DID hardcoded, senza una EcuDefinition
+     * non è possibile sapere quali identificatori debbano essere
+     * interrogati.
      *
-     * 22 + DID
+     * Questo metodo restituisce quindi un'identificazione vuota.
      *
-     * Esempio:
+     * Il percorso corretto per la nuova architettura è:
      *
-     * 22F190
+     * identify(ecuDefinition)
      *
-     * @param did DID.
-     *
-     * @return stringa decodificata oppure stringa vuota
-     *         se il DID non è disponibile.
+     * @return identificazione vuota.
      */
     @NonNull
-    private String readTextDid(
-            @NonNull String did) {
+    public EcuIdentification identify() {
 
-        PidDefinition definition =
-                createDidDefinition(
-                        did
-                );
+        return new EcuIdentification(
+                "",
+                "",
+                "",
+                ""
+        );
+    }
+
+    /**
+     * Legge una singola definizione di identificazione.
+     *
+     * @param definition definizione catalogata.
+     *
+     * @return valore decodificato oppure stringa vuota.
+     */
+    @NonNull
+    private String readIdentificationDefinition(
+            @NonNull EcuIdentificationDefinition definition) {
+
+        /*
+         * ---------------------------------------------------------
+         * SERVICE
+         * ---------------------------------------------------------
+         *
+         * Attualmente DiagnosticResponseParser supporta
+         * il servizio UDS 0x22 per questa fase.
+         *
+         * Altri servizi potranno essere aggiunti in futuro
+         * quando verranno implementati i relativi parser.
+         */
+
+        if (!definition.isReadDataByIdentifier()) {
+
+            return "";
+        }
+
+        PidDefinition pidDefinition;
+
+        try {
+
+            pidDefinition =
+                    createPidDefinition(
+                            definition
+                    );
+
+        } catch (IllegalArgumentException exception) {
+
+            return "";
+        }
 
         try {
 
             DiagnosticPidExecutor.DiagnosticPidExecution execution =
                     executor.execute(
-                            definition
+                            pidDefinition
                     );
 
             if (!execution.hasParsedResponse()) {
@@ -256,67 +363,219 @@ public class EcuIdentifier {
                 return "";
             }
 
-            return decodeText(
-                    result.getData()
+            byte[] data =
+                    result.getData();
+
+            return decodeIdentificationValue(
+                    definition,
+                    data
             );
 
-        } catch (
-                Exception exception) {
+        } catch (Exception exception) {
 
             /*
-             * Un DID non disponibile non deve impedire
-             * l'identificazione tramite gli altri DID.
+             * Una singola identificazione non disponibile
+             * non deve interrompere la discovery.
              */
             return "";
         }
     }
 
     /**
-     * Crea la definizione diagnostica per un DID UDS.
+     * Costruisce una PidDefinition temporanea utilizzabile
+     * dal normale percorso diagnostico.
      *
-     * La request viene dichiarata esplicitamente per evitare
-     * qualsiasi ambiguità nel percorso diagnostico.
+     * La richiesta esplicita viene costruita come:
      *
-     * @param did DID.
+     * service + DID
      *
-     * @return definizione.
+     * Esempio:
+     *
+     * 22 + F190 = 22F190
+     *
+     * @param definition definizione identificazione.
+     *
+     * @return definizione diagnostica temporanea.
      */
     @NonNull
-    private PidDefinition createDidDefinition(
-            @NonNull String did) {
+    private PidDefinition createPidDefinition(
+            @NonNull EcuIdentificationDefinition definition) {
 
-        String normalizedDid =
-                did.trim()
-                        .toUpperCase();
+        String service =
+                definition.getService()
+                        .trim()
+                        .toUpperCase(
+                                Locale.US
+                        );
+
+        String did =
+                definition.getDid()
+                        .trim()
+                        .toUpperCase(
+                                Locale.US
+                        );
 
         return new PidDefinition(
-                normalizedDid,
-                "ecu_identification_" + normalizedDid,
-                "ecu_identification_" + normalizedDid + "_description",
+                did,
+                "ecu_identification_" + did,
+                "ecu_identification_"
+                        + did
+                        + "_description",
                 "",
                 "RAW",
                 "",
-                0,
-                "22",
+                definition.hasByteLength()
+                        ? definition.getByteLength()
+                        : 0,
+                service,
                 "STRING",
-                "STANDARD",
-                false,
-                "BIG_ENDIAN",
-                0,
-                0,
-                0,
-                "22" + normalizedDid,
-                "62",
-                0
+                "STANDARD"
         );
     }
 
     /**
-     * Decodifica dati testuali restituendo il contenuto ASCII/UTF-8
-     * senza padding finale.
+     * Decodifica il payload ricevuto dalla ECU.
      *
-     * Alcune ECU restituiscono campi identificativi riempiti
-     * con spazi o byte NUL.
+     * Decoder supportati in questa fase:
+     *
+     * STRING
+     * ASCII
+     * HEX
+     *
+     * Per decoder non ancora supportati viene restituita
+     * una stringa vuota.
+     *
+     * @param definition definizione identificatore.
+     * @param data dati ricevuti.
+     *
+     * @return valore decodificato.
+     */
+    @NonNull
+    private String decodeIdentificationValue(
+            @NonNull EcuIdentificationDefinition definition,
+            @NonNull byte[] data) {
+
+        byte[] adjustedData =
+                applyDataRange(
+                        definition,
+                        data
+                );
+
+        if (adjustedData.length == 0) {
+
+            return "";
+        }
+
+        String decoder =
+                definition.getDecoder()
+                        .trim()
+                        .toUpperCase(
+                                Locale.US
+                        );
+
+        switch (decoder) {
+
+            case "STRING":
+            case "ASCII":
+
+                return decodeText(
+                        adjustedData
+                );
+
+            case "HEX":
+
+                return bytesToHex(
+                        adjustedData
+                );
+
+            case "RAW":
+
+                return decodeText(
+                        adjustedData
+                );
+
+            default:
+
+                /*
+                 * Decoder non ancora implementato.
+                 */
+                return "";
+        }
+    }
+
+    /**
+     * Applica offset e lunghezza definiti nel catalogo.
+     *
+     * @param definition definizione.
+     * @param data payload.
+     *
+     * @return porzione dati.
+     */
+    @NonNull
+    private byte[] applyDataRange(
+            @NonNull EcuIdentificationDefinition definition,
+            @NonNull byte[] data) {
+
+        int offset =
+                definition.getByteOffset();
+
+        if (offset < 0 ||
+                offset >= data.length) {
+
+            if (data.length == 0 &&
+                    offset == 0) {
+
+                return new byte[0];
+            }
+
+            return new byte[0];
+        }
+
+        int availableLength =
+                data.length - offset;
+
+        int requestedLength =
+                definition.getByteLength();
+
+        int length;
+
+        if (requestedLength > 0) {
+
+            length =
+                    Math.min(
+                            requestedLength,
+                            availableLength
+                    );
+
+        } else {
+
+            length =
+                    availableLength;
+        }
+
+        if (length <= 0) {
+
+            return new byte[0];
+        }
+
+        byte[] result =
+                new byte[length];
+
+        System.arraycopy(
+                data,
+                offset,
+                result,
+                0,
+                length
+        );
+
+        return result;
+    }
+
+    /**
+     * Decodifica dati testuali.
+     *
+     * Rimuove byte NUL e spazi di padding.
      *
      * @param data dati.
      *
@@ -343,5 +602,49 @@ public class EcuIdentifier {
                         ""
                 )
                 .trim();
+    }
+
+    /**
+     * Converte i dati in HEX.
+     *
+     * @param data dati.
+     *
+     * @return stringa HEX.
+     */
+    @NonNull
+    private String bytesToHex(
+            @NonNull byte[] data) {
+
+        if (data.length == 0) {
+
+            return "";
+        }
+
+        StringBuilder result =
+                new StringBuilder();
+
+        for (
+                int index = 0;
+                index < data.length;
+                index++
+        ) {
+
+            if (index > 0) {
+
+                result.append(
+                        " "
+                );
+            }
+
+            result.append(
+                    String.format(
+                            Locale.US,
+                            "%02X",
+                            data[index] & 0xFF
+                    )
+            );
+        }
+
+        return result.toString();
     }
 }
