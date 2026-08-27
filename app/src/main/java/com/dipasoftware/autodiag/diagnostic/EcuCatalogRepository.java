@@ -54,6 +54,7 @@ import java.util.Locale;
  *
  * - leggere il catalogo JSON;
  * - creare EcuDefinition;
+ * - leggere gli identificativi compatibili;
  * - cercare una ECU;
  * - restituire i dataset associati.
  *
@@ -103,7 +104,9 @@ public class EcuCatalogRepository {
                 );
 
         JSONObject root =
-                new JSONObject(json);
+                new JSONObject(
+                        json
+                );
 
         JSONArray ecus =
                 root.optJSONArray(
@@ -473,11 +476,31 @@ public class EcuCatalogRepository {
                 ).trim();
 
         /*
-         * I dataset sono opzionali.
+         * ---------------------------------------------------------
+         * IDENTIFICATORI ECU
+         * ---------------------------------------------------------
          *
-         * Il vecchio pidFile viene comunque mantenuto
-         * per compatibilità.
+         * Il blocco "identifiers" è opzionale.
+         *
+         * Se non esiste, viene utilizzato un
+         * EcuDefinitionIdentifier vuoto.
          */
+        JSONObject identifiersObject =
+                object.optJSONObject(
+                        "identifiers"
+                );
+
+        EcuDefinitionIdentifier identifiers =
+                parseIdentifiers(
+                        identifiersObject
+                );
+
+        /*
+         * ---------------------------------------------------------
+         * DATASET
+         * ---------------------------------------------------------
+         */
+
         JSONArray datasetArray =
                 object.optJSONArray(
                         "datasets"
@@ -519,8 +542,103 @@ public class EcuCatalogRepository {
                 ecu,
                 protocol,
                 pidFile,
+                identifiers,
                 datasets
         );
+    }
+
+    /**
+     * Converte il blocco JSON "identifiers"
+     * in EcuDefinitionIdentifier.
+     *
+     * Il blocco può essere assente nei vecchi cataloghi.
+     *
+     * @param object oggetto JSON identifiers oppure null.
+     *
+     * @return identificatori ECU.
+     */
+    @NonNull
+    private EcuDefinitionIdentifier parseIdentifiers(
+            @Nullable JSONObject object) {
+
+        if (object == null) {
+
+            return new EcuDefinitionIdentifier();
+        }
+
+        return new EcuDefinitionIdentifier(
+                readStringArray(
+                        object,
+                        "hardwareNumbers"
+                ),
+                readStringArray(
+                        object,
+                        "softwareNumbers"
+                ),
+                readStringArray(
+                        object,
+                        "partNumbers"
+                ),
+                readStringArray(
+                        object,
+                        "suppliers"
+                ),
+                readStringArray(
+                        object,
+                        "vinPatterns"
+                )
+        );
+    }
+
+    /**
+     * Legge un array JSON di stringhe.
+     *
+     * I campi null e vuoti vengono ignorati.
+     *
+     * @param object oggetto JSON.
+     * @param key chiave.
+     *
+     * @return lista delle stringhe.
+     */
+    @NonNull
+    private List<String> readStringArray(
+            @NonNull JSONObject object,
+            @NonNull String key) {
+
+        JSONArray array =
+                object.optJSONArray(
+                        key
+                );
+
+        if (array == null) {
+
+            return Collections.emptyList();
+        }
+
+        List<String> result =
+                new ArrayList<>();
+
+        for (
+                int index = 0;
+                index < array.length();
+                index++
+        ) {
+
+            String value =
+                    array.optString(
+                            index,
+                            ""
+                    ).trim();
+
+            if (!value.isEmpty()) {
+
+                result.add(
+                        value
+                );
+            }
+        }
+
+        return result;
     }
 
     /**

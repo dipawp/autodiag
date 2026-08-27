@@ -1,5 +1,5 @@
 {
-  "version": "1.0",
+  "version": "1.1",
   "description": "Catalogo ECU diagnostiche",
 
   "ecus": [
@@ -10,6 +10,24 @@
       "ecu": "TEST_ECU",
       "protocol": "CAN",
       "pidFile": "",
+
+      "identifiers": {
+        "hardwareNumbers": [
+          "EDC17"
+        ],
+        "softwareNumbers": [
+          "SW-TEST-001"
+        ],
+        "partNumbers": [
+          "PART-TEST-001"
+        ],
+        "suppliers": [
+          "BOSCH"
+        ],
+        "vinPatterns": [
+          "TESTVIN"
+        ]
+      },
 
       "datasets": [
         {

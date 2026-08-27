@@ -8,6 +8,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.Collections;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
@@ -221,6 +222,103 @@ public class EcuCatalogRepositoryTest {
                 "La ricerca per protocollo CAN "
                         + "deve trovare almeno una ECU.",
                 byProtocol.size() > 0
+        );
+    }
+
+
+    /**
+     * Verifica il caricamento degli identificativi ECU
+     * dal catalogo JSON.
+     */
+    @Test
+    public void loadEcuIdentifiers()
+            throws Exception {
+
+        Context context =
+                ApplicationProvider
+                        .getApplicationContext();
+
+        EcuCatalogRepository repository =
+                new EcuCatalogRepository(
+                        context
+                );
+
+        EcuDefinition ecu =
+                repository.find(
+                        "TEST",
+                        "TEST_MODEL",
+                        "TEST_ENGINE",
+                        "TEST_ECU"
+                );
+
+        assertNotNull(
+                ecu
+        );
+
+        EcuDefinitionIdentifier identifiers =
+                ecu.getIdentifiers();
+
+        assertNotNull(
+                identifiers
+        );
+
+        assertTrue(
+                identifiers.matchesHardware(
+                        "EDC17"
+                )
+        );
+
+        assertTrue(
+                identifiers.matchesSoftware(
+                        "SW-TEST-001"
+                )
+        );
+
+        assertTrue(
+                identifiers.matchesPartNumber(
+                        "PART-TEST-001"
+                )
+        );
+
+        assertTrue(
+                identifiers.matchesSupplier(
+                        "BOSCH"
+                )
+        );
+
+        assertTrue(
+                identifiers.matchesVin(
+                        "TESTVIN123456"
+                )
+        );
+    }
+
+
+    /**
+     * Verifica che un catalogo privo del blocco identifiers
+     * continui a produrre una EcuDefinition valida.
+     */
+    @Test
+    public void missingIdentifiersAreBackwardCompatible()
+            throws Exception {
+
+        EcuDefinition definition =
+                new EcuDefinition(
+                        "TEST",
+                        "MODEL",
+                        "ENGINE",
+                        "ECU",
+                        "CAN",
+                        "",
+                        Collections.emptyList()
+                );
+
+        assertNotNull(
+                definition.getIdentifiers()
+        );
+
+        assertTrue(
+                definition.getIdentifiers().isEmpty()
         );
     }
 }
