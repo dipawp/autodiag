@@ -369,4 +369,26 @@ public class Elm327AdapterConfigurator
                 executor
         );
     }
+
+    /**
+     * Costruisce ed esegue la configurazione ELM327.
+     *
+     * @param target target diagnostico.
+     * @param configurationExecutor esecutore configurazione.
+     *
+     * @throws IOException errore.
+     */
+    public void configureAndExecute(
+            @NonNull DiagnosticTargetDefinition target,
+            @NonNull Elm327ConfigurationExecutor configurationExecutor)
+            throws IOException {
+
+        configure(
+                target
+        );
+
+        configurationExecutor.execute(
+                lastPlan
+        );
+    }
 }

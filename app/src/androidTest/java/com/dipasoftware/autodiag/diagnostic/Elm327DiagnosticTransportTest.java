@@ -1,5 +1,6 @@
 package com.dipasoftware.autodiag.diagnostic;
 
+import androidx.annotation.NonNull;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.dipasoftware.autodiag.connection.Connection;
@@ -411,6 +412,304 @@ public class Elm327DiagnosticTransportTest {
         String getLastSentData() {
 
             return lastSentData;
+        }
+    }
+
+    /**
+     * Verifica che il nuovo transport esegua la configurazione
+     * prima della request diagnostica.
+     */
+    @Test
+    public void targetConfigurationIsExecutedBeforeDiagnosticRequest()
+            throws Exception {
+
+        FakeConnection connection =
+                new FakeConnection(
+                        "62 F1 90 12 34\r>"
+                );
+
+        Elm327AdapterConfigurator configurator =
+                new Elm327AdapterConfigurator();
+
+        FakeCommandSender commandSender =
+                new FakeCommandSender();
+
+        Elm327CommandExecutor commandExecutor =
+                new Elm327CommandExecutor(
+                        commandSender
+                );
+
+        Elm327ConfigurationExecutor configurationExecutor =
+                new Elm327ConfigurationExecutor(
+                        commandExecutor
+                );
+
+        Elm327DiagnosticTransport transport =
+                new Elm327DiagnosticTransport(
+                        connection,
+                        configurator,
+                        configurationExecutor
+                );
+
+        DiagnosticTargetDefinition target =
+                new DiagnosticTargetDefinition(
+                        "CAN",
+                        "7E0",
+                        "7E8",
+                        "PHYSICAL",
+                        11,
+                        500
+                );
+
+        transport.send(
+                target,
+                "22F190"
+        );
+
+        assertEquals(
+                5,
+                commandSender.getCount()
+        );
+
+        assertEquals(
+                "ATSP6",
+                commandSender.getCommands().get(0)
+        );
+
+        assertEquals(
+                "ATSH 7E0",
+                commandSender.getCommands().get(1)
+        );
+
+        assertEquals(
+                "ATCRA 7E8",
+                commandSender.getCommands().get(2)
+        );
+
+        assertEquals(
+                "ATE0",
+                commandSender.getCommands().get(3)
+        );
+
+        assertEquals(
+                "ATH0",
+                commandSender.getCommands().get(4)
+        );
+
+        assertEquals(
+                "22F190\r",
+                connection.getLastSentData()
+        );
+    }
+
+
+    /**
+     * Verifica che un errore di configurazione impedisca
+     * l'invio della request diagnostica.
+     */
+    @Test
+    public void configurationFailurePreventsDiagnosticRequest()
+            throws Exception {
+
+        FakeConnection connection =
+                new FakeConnection(
+                        "62 F1 90 12 34\r>"
+                );
+
+        Elm327AdapterConfigurator configurator =
+                new Elm327AdapterConfigurator();
+
+        FakeCommandSender commandSender =
+                new FakeCommandSender();
+
+        commandSender.failOn(
+                "ATSH 7E0"
+        );
+
+        Elm327CommandExecutor commandExecutor =
+                new Elm327CommandExecutor(
+                        commandSender
+                );
+
+        Elm327ConfigurationExecutor configurationExecutor =
+                new Elm327ConfigurationExecutor(
+                        commandExecutor
+                );
+
+        Elm327DiagnosticTransport transport =
+                new Elm327DiagnosticTransport(
+                        connection,
+                        configurator,
+                        configurationExecutor
+                );
+
+        DiagnosticTargetDefinition target =
+                new DiagnosticTargetDefinition(
+                        "CAN",
+                        "7E0",
+                        "7E8",
+                        "PHYSICAL",
+                        11,
+                        500
+                );
+
+        try {
+
+            transport.send(
+                    target,
+                    "22F190"
+            );
+
+            org.junit.Assert.fail(
+                    "Era attesa una IOException."
+            );
+
+        } catch (
+                java.io.IOException expected) {
+
+            assertEquals(
+                    2,
+                    commandSender.getCount()
+            );
+
+            assertEquals(
+                    "",
+                    connection.getLastSentData()
+            );
+
+            assertEquals(
+                    null,
+                    transport.getConfiguredTarget()
+            );
+        }
+    }
+
+    /**
+     * Verifica che un target già configurato non venga
+     * riconfigurato per ogni richiesta successiva.
+     */
+    @Test
+    public void sameTargetIsConfiguredOnlyOnce()
+            throws Exception {
+
+        FakeConnection connection =
+                new FakeConnection(
+                        "62 F1 90\r>"
+                );
+
+        Elm327AdapterConfigurator configurator =
+                new Elm327AdapterConfigurator();
+
+        FakeCommandSender commandSender =
+                new FakeCommandSender();
+
+        Elm327CommandExecutor commandExecutor =
+                new Elm327CommandExecutor(
+                        commandSender
+                );
+
+        Elm327ConfigurationExecutor configurationExecutor =
+                new Elm327ConfigurationExecutor(
+                        commandExecutor
+                );
+
+        Elm327DiagnosticTransport transport =
+                new Elm327DiagnosticTransport(
+                        connection,
+                        configurator,
+                        configurationExecutor
+                );
+
+        DiagnosticTargetDefinition target =
+                new DiagnosticTargetDefinition(
+                        "CAN",
+                        "7E0",
+                        "7E8",
+                        "PHYSICAL",
+                        11,
+                        500
+                );
+
+        transport.send(
+                target,
+                "22F190"
+        );
+
+        transport.receive(
+                target
+        );
+
+        transport.send(
+                target,
+                "22F191"
+        );
+
+        /*
+         * Una sola configurazione:
+         *
+         * ATSP6
+         * ATSH
+         * ATCRA
+         * ATE0
+         * ATH0
+         */
+        assertEquals(
+                5,
+                commandSender.getCount()
+        );
+    }
+
+
+    /**
+     * Sender fittizio per i comandi AT.
+     */
+    private static class FakeCommandSender
+            implements Elm327CommandExecutor.CommandSender {
+
+        @NonNull
+        private final java.util.List<String> commands =
+                new java.util.ArrayList<>();
+
+        @NonNull
+        private String failingCommand =
+                "";
+
+        @Override
+        @NonNull
+        public String sendCommand(
+                @NonNull String command)
+                throws java.io.IOException {
+
+            commands.add(
+                    command
+            );
+
+            if (command.equalsIgnoreCase(
+                    failingCommand
+            )) {
+
+                return "?";
+            }
+
+            return "OK\r>";
+        }
+
+        void failOn(
+                @NonNull String command) {
+
+            failingCommand =
+                    command;
+        }
+
+        int getCount() {
+
+            return commands.size();
+        }
+
+        @NonNull
+        java.util.List<String> getCommands() {
+
+            return commands;
         }
     }
 }

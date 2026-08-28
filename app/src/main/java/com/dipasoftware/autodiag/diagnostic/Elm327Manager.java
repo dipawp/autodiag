@@ -1691,4 +1691,118 @@ public class Elm327Manager {
         result.append("ERRORE: risposta inattesa da " + command + ".\n");
         return false;
     }
+
+
+    /**
+     * Crea il transport diagnostico catalog-driven.
+     *
+     * Questo percorso utilizza:
+     *
+     * EcuDefinition
+     *      ↓
+     * DiagnosticTargetDefinition
+     *      ↓
+     * Elm327AdapterConfigurator
+     *      ↓
+     * Elm327ConfigurationExecutor
+     *      ↓
+     * Elm327CommandExecutor
+     *      ↓
+     * Elm327Manager
+     *      ↓
+     * Connection
+     *
+     * Il percorso legacy del DiagnosticPidExecutor interno
+     * non viene modificato.
+     *
+     * @return transport diagnostico configurato per lavorare
+     *         con target ECU espliciti.
+     */
+    @NonNull
+    public DiagnosticTransport createDiagnosticTransport() {
+
+        Elm327ManagerCommandSender commandSender =
+                new Elm327ManagerCommandSender(
+                        this
+                );
+
+        Elm327CommandExecutor commandExecutor =
+                new Elm327CommandExecutor(
+                        commandSender
+                );
+
+        Elm327ConfigurationExecutor configurationExecutor =
+                new Elm327ConfigurationExecutor(
+                        commandExecutor
+                );
+
+        Elm327AdapterConfigurator adapterConfigurator =
+                new Elm327AdapterConfigurator();
+
+        return new Elm327DiagnosticTransport(
+                connection,
+                adapterConfigurator,
+                configurationExecutor
+        );
+    }
+
+
+    /**
+     * Crea un DiagnosticPidExecutor che utilizza il nuovo
+     * transport catalog-driven.
+     *
+     * Il percorso costruito è:
+     *
+     * Elm327Manager
+     *      ↓
+     * Elm327ManagerCommandSender
+     *      ↓
+     * Elm327CommandExecutor
+     *      ↓
+     * Elm327ConfigurationExecutor
+     *      ↓
+     * Elm327AdapterConfigurator
+     *      ↓
+     * Elm327DiagnosticTransport
+     *      ↓
+     * DiagnosticPidExecutor
+     *
+     * Il DiagnosticPidExecutor legacy già presente nel manager
+     * non viene modificato.
+     *
+     * @return executor diagnostico catalog-driven.
+     */
+    @NonNull
+    public DiagnosticPidExecutor createCatalogDiagnosticPidExecutor() {
+
+        Elm327ManagerCommandSender commandSender =
+                new Elm327ManagerCommandSender(
+                        this
+                );
+
+        Elm327CommandExecutor commandExecutor =
+                new Elm327CommandExecutor(
+                        commandSender
+                );
+
+        Elm327ConfigurationExecutor configurationExecutor =
+                new Elm327ConfigurationExecutor(
+                        commandExecutor
+                );
+
+        Elm327AdapterConfigurator adapterConfigurator =
+                new Elm327AdapterConfigurator();
+
+        DiagnosticTransport transport =
+                new Elm327DiagnosticTransport(
+                        connection,
+                        adapterConfigurator,
+                        configurationExecutor
+                );
+
+        return new DiagnosticPidExecutor(
+                transport,
+                new ReadOnlyDiagnosticPolicy()
+        );
+    }
 }

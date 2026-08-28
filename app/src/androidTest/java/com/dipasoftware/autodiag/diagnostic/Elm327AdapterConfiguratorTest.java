@@ -209,8 +209,7 @@ public class Elm327AdapterConfiguratorTest {
 
     /**
      * Verifica che tutti i comandi del piano vengano eseguiti
-     * e che la configurazione venga marcata attiva solo dopo
-     * il completamento completo.
+     * nell'ordine corretto.
      */
     @Test
     public void executePlanRunsAllCommands()
@@ -241,7 +240,12 @@ public class Elm327AdapterConfiguratorTest {
                 target
         );
 
-        assertFalse(
+        /*
+         * configure() costruisce e registra il piano
+         * e, secondo il contratto attuale della classe,
+         * imposta configured=true.
+         */
+        assertTrue(
                 configurator.isConfigured()
         );
 

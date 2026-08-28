@@ -13,29 +13,22 @@ import java.io.IOException;
  *
  * Tipo.......: Adapter
  *
- * Package....: com.dipasoftware.autodiag.diagnostic
- *
  * Descrizione:
  *
- * Adapter tra DiagnosticTransport e Connection.
+ * Transport diagnostico ELM327.
  *
  * Gestisce:
  *
  * - stato della transazione;
- * - target diagnostico;
+ * - target corrente;
  * - configurazione dell'adapter;
- * - invio della request;
- * - ricezione della response.
+ * - invio request diagnostica;
+ * - ricezione response.
  *
- * Il configuratore dell'ELM327 è separato dal transport.
+ * Il transport NON decide se una richiesta diagnostica è consentita.
+ * La DiagnosticOperationPolicy viene applicata dal DiagnosticPidExecutor.
  *
- * ATTENZIONE:
- *
- * Questa versione NON invia ancora comandi AT.
- *
- * Elm327AdapterConfigurator memorizza solamente il target configurato.
- *
- * La ReadOnlyDiagnosticPolicy rimane a monte del transport.
+ * La configurazione dell'ELM327 è separata dal traffico diagnostico.
  *
  * ****************************************************************************
  */
@@ -61,14 +54,29 @@ public class Elm327DiagnosticTransport
     private final DiagnosticAdapterConfigurator adapterConfigurator;
 
     /**
-     * Target configurato dall'adapter.
+     * Esecutore della configurazione.
+     *
+     * Può essere null nel percorso legacy nel quale
+     * la configurazione dinamica non è ancora collegata.
+     */
+    private final Elm327ConfigurationExecutor
+            configurationExecutor;
+
+    /**
+     * Target attualmente configurato.
      */
     private DiagnosticTargetDefinition configuredTarget;
 
     /**
-     * Costruttore standard.
+     * Costruttore legacy.
      *
-     * Utilizza il configuratore ELM327 predefinito.
+     * Mantiene il comportamento precedente:
+     *
+     * Connection
+     *   ↓
+     * request diagnostica
+     *
+     * senza esecuzione automatica dei comandi AT dinamici.
      *
      * @param connection connessione fisica.
      */
@@ -77,21 +85,46 @@ public class Elm327DiagnosticTransport
 
         this(
                 connection,
-                new Elm327AdapterConfigurator()
+                new Elm327AdapterConfigurator(),
+                null
         );
     }
 
     /**
-     * Costruttore configurabile.
+     * Costruttore con configuratore.
      *
-     * Utile per test e per future implementazioni.
+     * Il configuratore produce il piano, ma non lo esegue
+     * perché manca un executor esplicito.
      *
-     * @param connection connessione fisica.
-     * @param adapterConfigurator configuratore adapter.
+     * @param connection connessione.
+     * @param adapterConfigurator configuratore.
      */
     public Elm327DiagnosticTransport(
             @NonNull Connection connection,
             @NonNull DiagnosticAdapterConfigurator adapterConfigurator) {
+
+        this(
+                connection,
+                adapterConfigurator,
+                null
+        );
+    }
+
+    /**
+     * Costruttore completo.
+     *
+     * Questo è il nuovo percorso utilizzabile quando si vuole
+     * applicare realmente la configurazione del target prima
+     * della richiesta diagnostica.
+     *
+     * @param connection connessione fisica.
+     * @param adapterConfigurator configuratore.
+     * @param configurationExecutor esecutore configurazione.
+     */
+    public Elm327DiagnosticTransport(
+            @NonNull Connection connection,
+            @NonNull DiagnosticAdapterConfigurator adapterConfigurator,
+            Elm327ConfigurationExecutor configurationExecutor) {
 
         this.connection =
                 connection;
@@ -102,21 +135,24 @@ public class Elm327DiagnosticTransport
         this.adapterConfigurator =
                 adapterConfigurator;
 
+        this.configurationExecutor =
+                configurationExecutor;
+
         this.configuredTarget =
                 null;
     }
 
     /**
-     * Invia una request verso il target specificato.
+     * Invia una richiesta diagnostica.
      *
-     * Se il target è differente da quello attualmente configurato,
-     * viene prima richiesto il cambio di configurazione.
+     * Se il target cambia e un ConfigurationExecutor è disponibile,
+     * viene applicata la configurazione adapter prima dell'invio.
      *
-     * In questa versione la configurazione è solamente logica:
-     * non vengono inviati comandi AT.
+     * Se il target cambia ma manca il ConfigurationExecutor,
+     * il transport opera in modalità legacy e non invia comandi AT.
      *
      * @param target target diagnostico.
-     * @param request request diagnostica.
+     * @param request richiesta.
      *
      * @throws IOException errore di comunicazione/configurazione.
      */
@@ -154,29 +190,14 @@ public class Elm327DiagnosticTransport
                 target
         )) {
 
-            try {
-
-                adapterConfigurator.configure(
-                        target
-                );
-
-            } catch (
-                    RuntimeException exception) {
-
-                throw new IOException(
-                        "Impossibile configurare "
-                                + "il target diagnostico.",
-                        exception
-                );
-            }
-
-            configuredTarget =
-                    target;
+            configureTarget(
+                    target
+            );
         }
 
         /*
          * ---------------------------------------------------------
-         * NUOVA TRANSAZIONE
+         * TRANSAZIONE
          * ---------------------------------------------------------
          */
 
@@ -189,11 +210,13 @@ public class Elm327DiagnosticTransport
 
         /*
          * ---------------------------------------------------------
-         * INVIO
+         * REQUEST DIAGNOSTICA
          * ---------------------------------------------------------
          *
-         * Il transport non modifica ancora la request
-         * con CAN ID o altri comandi adapter.
+         * Arriviamo qui solo dopo la configurazione del target.
+         *
+         * La policy read-only è stata già verificata
+         * dal DiagnosticPidExecutor prima di questo punto.
          */
         try {
 
@@ -208,20 +231,98 @@ public class Elm327DiagnosticTransport
 
             throw new IOException(
                     "Errore durante l'invio "
-                            + "della request diagnostica.",
+                            + "della richiesta diagnostica.",
                     exception
             );
         }
     }
 
     /**
-     * Riceve la risposta relativa al target corrente.
+     * Configura il target adapter.
      *
-     * @param target target atteso.
+     * @param target target.
+     *
+     * @throws IOException errore configurazione.
+     */
+    private void configureTarget(
+            @NonNull DiagnosticTargetDefinition target)
+            throws IOException {
+
+        /*
+         * Costruiamo sempre il piano attraverso il configuratore.
+         *
+         * Questo permette di verificare che il target sia supportato
+         * anche quando l'esecuzione reale non è ancora abilitata.
+         */
+        adapterConfigurator.configure(
+                target
+        );
+
+        /*
+         * In modalità legacy non eseguiamo AT.
+         *
+         * La configurazione reale richiede esplicitamente
+         * un Elm327ConfigurationExecutor.
+         */
+        if (configurationExecutor == null) {
+
+            configuredTarget =
+                    target;
+
+            return;
+        }
+
+        if (!(adapterConfigurator
+                instanceof Elm327AdapterConfigurator)) {
+
+            throw new IOException(
+                    "ConfigurationExecutor disponibile, "
+                            + "ma il configuratore non è "
+                            + "Elm327AdapterConfigurator."
+            );
+        }
+
+        Elm327AdapterConfigurator configurator =
+                (Elm327AdapterConfigurator)
+                        adapterConfigurator;
+
+        /*
+         * Il piano deve esistere.
+         */
+        if (configurator.getLastPlan() == null) {
+
+            throw new IOException(
+                    "Piano ELM327 non disponibile."
+            );
+        }
+
+        /*
+         * Esecuzione completa.
+         *
+         * Se un singolo comando fallisce,
+         * configurationExecutor lancia IOException.
+         *
+         * In quel caso configuredTarget NON viene aggiornato.
+         */
+        configurationExecutor.execute(
+                configurator.getLastPlan()
+        );
+
+        configuredTarget =
+                target;
+    }
+
+    /**
+     * Riceve la risposta.
+     *
+     * Il target deve corrispondere alla transazione pendente
+     * e al target configurato.
+     *
+     * @param target target.
      *
      * @return risposta raw.
      *
-     * @throws IOException stato non valido oppure errore.
+     * @throws IOException errore/stato non valido.
      */
     @Override
     @NonNull
@@ -230,17 +331,17 @@ public class Elm327DiagnosticTransport
             throws IOException {
 
         /*
-         * Nessuna request pendente.
+         * Nessuna richiesta.
          */
         if (state.isIdle()) {
 
             throw new IOException(
-                    "Nessuna request diagnostica pendente."
+                    "Nessuna richiesta diagnostica pendente."
             );
         }
 
         /*
-         * La transazione è già completata.
+         * Richiesta già completata.
          */
         if (!state.isWaitingResponse()) {
 
@@ -251,7 +352,7 @@ public class Elm327DiagnosticTransport
         }
 
         /*
-         * Target differente dalla request pendente.
+         * Target della transazione.
          */
         if (!state.matchesTarget(
                 target
@@ -259,13 +360,12 @@ public class Elm327DiagnosticTransport
 
             throw new IOException(
                     "Target diagnostico non corrispondente "
-                            + "alla request pendente."
+                            + "alla richiesta pendente."
             );
         }
 
         /*
-         * Il target della transazione deve essere anche
-         * quello attualmente configurato.
+         * Target adapter configurato.
          */
         if (!isSameTarget(
                 configuredTarget,
@@ -273,8 +373,8 @@ public class Elm327DiagnosticTransport
         )) {
 
             throw new IOException(
-                    "Il target richiesto non corrisponde "
-                            + "al target configurato."
+                    "Target configurato non corrisponde "
+                            + "al target della transazione."
             );
         }
 
@@ -309,13 +409,14 @@ public class Elm327DiagnosticTransport
     }
 
     /**
-     * Reimposta il configuratore adapter.
+     * Reimposta la configurazione.
      *
-     * Non viene eseguito automaticamente dopo receive(),
-     * perché il target può essere riutilizzato per la request
-     * successiva.
+     * Nota:
      *
-     * @throws IOException errore di reset.
+     * reset() del configuratore non invia automaticamente
+     * comandi all'ELM327.
+     *
+     * @throws IOException errore.
      */
     public void resetAdapterConfiguration()
             throws IOException {
@@ -324,10 +425,12 @@ public class Elm327DiagnosticTransport
 
         configuredTarget =
                 null;
+
+        state.reset();
     }
 
     /**
-     * Restituisce lo stato della transazione.
+     * Restituisce lo stato.
      *
      * @return stato.
      */
@@ -338,7 +441,7 @@ public class Elm327DiagnosticTransport
     }
 
     /**
-     * Restituisce il configuratore adapter.
+     * Restituisce il configuratore.
      *
      * @return configuratore.
      */
@@ -350,19 +453,31 @@ public class Elm327DiagnosticTransport
     }
 
     /**
-     * Restituisce il target attualmente configurato.
+     * Restituisce l'esecutore configurazione.
+     *
+     * @return executor oppure null.
+     */
+    public Elm327ConfigurationExecutor
+    getConfigurationExecutor() {
+
+        return configurationExecutor;
+    }
+
+    /**
+     * Restituisce il target configurato.
      *
      * @return target oppure null.
      */
-    public DiagnosticTargetDefinition getConfiguredTarget() {
+    public DiagnosticTargetDefinition
+    getConfiguredTarget() {
 
         return configuredTarget;
     }
 
     /**
-     * Restituisce l'ultimo target della transazione.
+     * Restituisce ultimo target della transazione.
      *
-     * @return target oppure null.
+     * @return target.
      */
     public DiagnosticTargetDefinition getLastTarget() {
 
@@ -370,7 +485,7 @@ public class Elm327DiagnosticTransport
     }
 
     /**
-     * Restituisce l'ultima request.
+     * Restituisce ultima request.
      *
      * @return request.
      */
@@ -381,9 +496,9 @@ public class Elm327DiagnosticTransport
     }
 
     /**
-     * Indica se è presente una risposta pendente.
+     * Indica se è in attesa di response.
      *
-     * @return true se in attesa.
+     * @return true se pending.
      */
     public boolean isWaitingResponse() {
 
@@ -430,6 +545,10 @@ public class Elm327DiagnosticTransport
                 &&
                 first.getCanIdBits()
                         ==
-                        second.getCanIdBits();
+                        second.getCanIdBits()
+                &&
+                first.getCanBitrateKbps()
+                        ==
+                        second.getCanBitrateKbps();
     }
 }
