@@ -48,7 +48,21 @@ public class ObdVehicleInformationParser {
             0x02;
 
     /**
-     * Analizza una risposta Mode 09 PID 02.
+     * Analizza una risposta OBD-II Mode 09 PID 02
+     * contenente il VIN.
+     *
+     * Struttura della risposta positiva:
+     *
+     *     49 02 01 [17 byte VIN]
+     *
+     * dove:
+     *
+     *     49 = risposta positiva al Mode 09
+     *     02 = PID VIN
+     *     01 = numero di record/messaggi di dati
+     *     VIN = 17 caratteri
+     *
+     * Il byte 01 NON appartiene al VIN.
      *
      * @param response risposta ELM327.
      * @param expectedRequest richiesta attesa.
@@ -79,9 +93,7 @@ public class ObdVehicleInformationParser {
                         expectedRequest
                 );
 
-        if (!"0902".equals(
-                request
-        )) {
+        if (!"0902".equals(request)) {
 
             throw new IllegalArgumentException(
                     "Richiesta VIN non valida: "
@@ -90,20 +102,29 @@ public class ObdVehicleInformationParser {
         }
 
         /*
-         * Cerchiamo le occorrenze positive 49 02.
+         * -------------------------------------------------------------
+         * RICERCA RISPOSTA POSITIVA
+         * -------------------------------------------------------------
          *
-         * In una risposta multi-frame ELM327 il contenuto
-         * può essere presentato su più righe.
+         * Cerchiamo:
+         *
+         *     49 02
+         *
+         * La struttura attesa è:
+         *
+         *     49 02 01 [VIN]
+         *
+         * Il byte 01 rappresenta il numero di record
+         * e non deve essere incluso nel VIN.
          */
-        List<Byte> vinBytes =
-                new ArrayList<>();
+        int responseStart =
+                -1;
 
-        boolean foundResponse =
-                false;
-
-        for (int index = 0;
-             index < bytes.size() - 1;
-             index++) {
+        for (
+                int index = 0;
+                index < bytes.size() - 1;
+                index++
+        ) {
 
             if (bytes.get(index) ==
                     POSITIVE_SERVICE
@@ -111,44 +132,14 @@ public class ObdVehicleInformationParser {
                     bytes.get(index + 1) ==
                             VIN_PID) {
 
-                foundResponse =
-                        true;
+                responseStart =
+                        index;
 
-                int dataStart =
-                        index + 2;
-
-                for (
-                        int dataIndex = dataStart;
-                        dataIndex < bytes.size();
-                        dataIndex++
-                ) {
-
-                    /*
-                     * Se ricompare 49 02 significa
-                     * l'inizio di un altro segmento.
-                     */
-                    if (dataIndex < bytes.size() - 1
-                            &&
-                            bytes.get(dataIndex) ==
-                                    POSITIVE_SERVICE
-                            &&
-                            bytes.get(dataIndex + 1) ==
-                                    VIN_PID) {
-
-                        break;
-                    }
-
-                    vinBytes.add(
-                            (byte)
-                                    (bytes.get(
-                                            dataIndex
-                                    ) & 0xFF)
-                    );
-                }
+                break;
             }
         }
 
-        if (!foundResponse) {
+        if (responseStart < 0) {
 
             throw new IllegalArgumentException(
                     "Risposta VIN non riconosciuta: "
@@ -157,21 +148,72 @@ public class ObdVehicleInformationParser {
         }
 
         /*
-         * Alcune implementazioni possono lasciare
-         * byte di padding iniziali.
+         * -------------------------------------------------------------
+         * INIZIO DATI VIN
+         * -------------------------------------------------------------
+         */
+
+        int dataStart =
+                responseStart + 2;
+
+        /*
+         * Dopo 49 02 ci si aspetta il byte del numero
+         * di record/messaggi.
          *
-         * Conserviamo solamente caratteri ASCII
-         * compatibili con un VIN.
+         * Se presente, viene saltato.
+         */
+        if (dataStart < bytes.size()) {
+
+            int recordCount =
+                    bytes.get(
+                            dataStart
+                    );
+
+            /*
+             * Per PID 02 il valore atteso normalmente è 01.
+             *
+             * Non imponiamo però rigidamente il valore per
+             * mantenere compatibilità con eventuali risposte
+             * implementate in modo differente.
+             *
+             * Il byte viene comunque escluso dai dati VIN.
+             */
+            if (recordCount >= 0) {
+
+                dataStart++;
+            }
+        }
+
+        /*
+         * -------------------------------------------------------------
+         * ESTRAZIONE VIN
+         * -------------------------------------------------------------
+         *
+         * Il VIN contiene 17 caratteri ASCII alfanumerici.
+         *
+         * Ignoriamo:
+         *
+         * - byte di padding;
+         * - CR/LF;
+         * - eventuali byte non VIN.
+         *
+         * Ci fermiamo esattamente a 17 caratteri.
          */
         StringBuilder vin =
-                new StringBuilder();
+                new StringBuilder(
+                        17
+                );
 
-        for (Byte value :
-                vinBytes
+        for (
+                int index = dataStart;
+                index < bytes.size()
+                        &&
+                        vin.length() < 17;
+                index++
         ) {
 
             int current =
-                    value & 0xFF;
+                    bytes.get(index);
 
             if (isVinCharacter(
                     current
@@ -180,16 +222,17 @@ public class ObdVehicleInformationParser {
                 vin.append(
                         (char) current
                 );
-
-                if (vin.length() == 17) {
-
-                    break;
-                }
             }
         }
 
         String result =
                 vin.toString().trim();
+
+        /*
+         * -------------------------------------------------------------
+         * VALIDAZIONE
+         * -------------------------------------------------------------
+         */
 
         if (result.length() != 17) {
 
@@ -197,12 +240,14 @@ public class ObdVehicleInformationParser {
                     "VIN non valido o incompleto. "
                             + "Lunghezza: "
                             + result.length()
+                            + ". Risposta: "
+                            + response
             );
         }
 
         return new VehicleInformationResponse(
-                0x49,
-                0x02,
+                POSITIVE_SERVICE,
+                VIN_PID,
                 result
         );
     }

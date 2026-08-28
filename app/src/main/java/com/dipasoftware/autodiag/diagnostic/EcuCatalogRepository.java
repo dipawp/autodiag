@@ -506,6 +506,18 @@ public class EcuCatalogRepository {
                         identificationArray
                 );
 
+
+        JSONObject targetObject =
+                object.optJSONObject(
+                        "target"
+                );
+
+        DiagnosticTargetDefinition target =
+                parseTarget(
+                        targetObject,
+                        protocol
+                );
+
         /*
          * ---------------------------------------------------------
          * DATASET
@@ -555,6 +567,7 @@ public class EcuCatalogRepository {
                 pidFile,
                 identifiers,
                 identification,
+                target,
                 datasets
         );
     }
@@ -916,5 +929,145 @@ public class EcuCatalogRepository {
         }
 
         return result;
+    }
+
+
+    /**
+     * Converte il blocco JSON "target" in
+     * DiagnosticTargetDefinition.
+     *
+     * Il blocco è opzionale per mantenere compatibilità
+     * con i vecchi cataloghi.
+     *
+     * Se assente, viene utilizzato un target predefinito
+     * coerente con il protocollo.
+     *
+     * @param object oggetto JSON target oppure null.
+     * @param protocol protocollo ECU.
+     *
+     * @return target diagnostico.
+     */
+    @NonNull
+    private DiagnosticTargetDefinition parseTarget(
+            @Nullable JSONObject object,
+            @NonNull String protocol) {
+
+        if (object == null) {
+
+            return createDefaultTarget(
+                    protocol
+            );
+        }
+
+        String targetProtocol =
+                object.optString(
+                        "protocol",
+                        protocol
+                ).trim();
+
+        String requestId =
+                object.optString(
+                        "requestId",
+                        ""
+                ).trim();
+
+        String responseId =
+                object.optString(
+                        "responseId",
+                        ""
+                ).trim();
+
+        String addressingMode =
+                object.optString(
+                        "addressingMode",
+                        "PHYSICAL"
+                ).trim();
+
+        int canIdBits =
+                object.optInt(
+                        "canIdBits",
+                        11
+                );
+
+        /*
+         * Se il JSON contiene un target ma manca uno degli ID
+         * necessari, consideriamo il catalogo non valido.
+         */
+        if (requestId.isEmpty()) {
+
+            throw new IllegalArgumentException(
+                    "target.requestId mancante."
+            );
+        }
+
+        if (responseId.isEmpty()) {
+
+            throw new IllegalArgumentException(
+                    "target.responseId mancante."
+            );
+        }
+
+        return new DiagnosticTargetDefinition(
+                targetProtocol,
+                requestId,
+                responseId,
+                addressingMode,
+                canIdBits
+        );
+    }
+
+
+    /**
+     * Crea il target predefinito per un catalogo
+     * che non contiene ancora la sezione "target".
+     *
+     * @param protocol protocollo.
+     *
+     * @return target predefinito.
+     */
+    @NonNull
+    private DiagnosticTargetDefinition createDefaultTarget(
+            @NonNull String protocol) {
+
+        String normalizedProtocol =
+                protocol.trim()
+                        .toUpperCase();
+
+        if ("CAN".equals(
+                normalizedProtocol
+        )
+                ||
+                "ISO_15765_4_CAN".equals(
+                        normalizedProtocol
+                )
+                ||
+                "UDS".equals(
+                        normalizedProtocol
+                )) {
+
+            return new DiagnosticTargetDefinition(
+                    normalizedProtocol,
+                    "7E0",
+                    "7E8",
+                    "PHYSICAL",
+                    11
+            );
+        }
+
+        /*
+         * Placeholder esclusivamente per compatibilità
+         * con protocolli non-CAN.
+         *
+         * Non viene utilizzato dal transport layer.
+         */
+        return new DiagnosticTargetDefinition(
+                normalizedProtocol.isEmpty()
+                        ? "UNKNOWN"
+                        : normalizedProtocol,
+                "0",
+                "0",
+                "PHYSICAL",
+                11
+        );
     }
 }

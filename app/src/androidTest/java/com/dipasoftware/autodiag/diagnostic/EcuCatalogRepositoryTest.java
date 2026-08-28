@@ -393,4 +393,109 @@ public class EcuCatalogRepositoryTest {
                 vin.buildRequest()
         );
     }
+
+
+    /**
+     * Verifica il caricamento del target diagnostico
+     * dal catalogo ECU.
+     */
+    @Test
+    public void loadEcuTarget()
+            throws Exception {
+
+        Context context =
+                ApplicationProvider
+                        .getApplicationContext();
+
+        EcuCatalogRepository repository =
+                new EcuCatalogRepository(
+                        context
+                );
+
+        EcuDefinition ecu =
+                repository.find(
+                        "TEST",
+                        "TEST_MODEL",
+                        "TEST_ENGINE",
+                        "TEST_ECU"
+                );
+
+        assertNotNull(
+                ecu
+        );
+
+        DiagnosticTargetDefinition target =
+                ecu.getTarget();
+
+        assertNotNull(
+                target
+        );
+
+        assertEquals(
+                "CAN",
+                target.getProtocol()
+        );
+
+        assertEquals(
+                "7E0",
+                target.getRequestId()
+        );
+
+        assertEquals(
+                "7E8",
+                target.getResponseId()
+        );
+
+        assertEquals(
+                "PHYSICAL",
+                target.getAddressingMode()
+        );
+
+        assertEquals(
+                11,
+                target.getCanIdBits()
+        );
+
+        assertTrue(
+                target.isStandardCanId()
+        );
+    }
+
+
+    /**
+     * Verifica che un catalogo precedente, privo
+     * del blocco target, continui ad avere un target
+     * predefinito.
+     */
+    @Test
+    public void missingTargetUsesDefault()
+            throws Exception {
+
+        EcuDefinition definition =
+                new EcuDefinition(
+                        "TEST",
+                        "TEST_MODEL",
+                        "TEST_ENGINE",
+                        "TEST_ECU",
+                        "CAN",
+                        "",
+                        new EcuDefinitionIdentifier(),
+                        Collections.emptyList(),
+                        Collections.emptyList()
+                );
+
+        assertNotNull(
+                definition.getTarget()
+        );
+
+        assertEquals(
+                "7E0",
+                definition.getTarget().getRequestId()
+        );
+
+        assertEquals(
+                "7E8",
+                definition.getTarget().getResponseId()
+        );
+    }
 }
