@@ -17,34 +17,31 @@ import java.io.IOException;
  *
  * Descrizione:
  *
- * Esegue una singola richiesta diagnostica utilizzando una Connection.
+ * Esegue una singola richiesta diagnostica.
  *
  * Responsabilità:
  *
  * - costruire la request;
- * - inviare la request;
+ * - verificare la policy di sicurezza;
+ * - inviare la request tramite DiagnosticTransport;
  * - ricevere la risposta raw;
  * - delegare il parsing al DiagnosticResponseParser.
  *
- * La classe NON interpreta gli errori specifici ELM327.
+ * La Connection rimane il livello fisico di comunicazione.
  *
- * Questo mantiene separata:
- *
- *     comunicazione
- *         ↓
- *     parsing diagnostico
- *         ↓
- *     gestione errori ELM327
+ * DiagnosticTransport rappresenta invece il livello di trasporto
+ * diagnostico e permette in futuro di gestire il target ECU senza
+ * modificare tutta l'architettura.
  *
  * ****************************************************************************
  */
 public class DiagnosticPidExecutor {
 
     /**
-     * Connessione fisica verso l'interfaccia diagnostica.
+     * Transport diagnostico.
      */
     @NonNull
-    private final Connection connection;
+    private final DiagnosticTransport transport;
 
     /**
      * Builder delle richieste diagnostiche.
@@ -58,53 +55,69 @@ public class DiagnosticPidExecutor {
     @NonNull
     private final DiagnosticResponseParser responseParser;
 
-
     /**
-     * Policy che autorizza o blocca la richiesta
-     * prima dell'invio alla Connection.
+     * Policy di sicurezza.
      *
-     * Per la V1 deve essere sempre una policy read-only.
+     * Nella V1 deve essere ReadOnlyDiagnosticPolicy.
      */
     @NonNull
     private final DiagnosticOperationPolicy operationPolicy;
 
-
-
     /**
-     * Costruttore standard dell'executor.
+     * Costruttore compatibile con il codice esistente.
      *
-     * La V1 utilizza sempre la policy read-only.
+     * Utilizza:
      *
-     * Questo costruttore mantiene compatibilità con
-     * tutto il codice esistente che crea DiagnosticPidExecutor
-     * passando solamente la Connection.
+     * - Elm327DiagnosticTransport;
+     * - ReadOnlyDiagnosticPolicy.
      *
-     * @param connection connessione diagnostica.
+     * @param connection connessione fisica.
      */
     public DiagnosticPidExecutor(
             @NonNull Connection connection) {
 
         this(
-                connection,
+                new Elm327DiagnosticTransport(
+                        connection
+                ),
                 new ReadOnlyDiagnosticPolicy()
         );
     }
 
-
-
-
-
-
     /**
-     * Costruttore.
+     * Costruttore compatibile con il codice esistente
+     * che permette di specificare la policy.
      *
-     * @param connection connessione diagnostica.
+     * @param connection connessione fisica.
+     * @param operationPolicy policy diagnostica.
      */
     public DiagnosticPidExecutor(
-            @NonNull Connection connection, @NonNull DiagnosticOperationPolicy operationPolicy) {
+            @NonNull Connection connection,
+            @NonNull DiagnosticOperationPolicy operationPolicy) {
 
-        this.connection =
-                connection;
+        this(
+                new Elm327DiagnosticTransport(
+                        connection
+                ),
+                operationPolicy
+        );
+    }
+
+    /**
+     * Costruttore basato direttamente sul transport.
+     *
+     * Utile per test e per future implementazioni del
+     * livello di comunicazione diagnostica.
+     *
+     * @param transport transport diagnostico.
+     * @param operationPolicy policy diagnostica.
+     */
+    public DiagnosticPidExecutor(
+            @NonNull DiagnosticTransport transport,
+            @NonNull DiagnosticOperationPolicy operationPolicy) {
+
+        this.transport =
+                transport;
 
         this.requestBuilder =
                 new DiagnosticRequestBuilder();
@@ -117,7 +130,37 @@ public class DiagnosticPidExecutor {
     }
 
     /**
-     * Esegue una richiesta diagnostica.
+     * Costruttore basato sul transport e policy read-only.
+     *
+     * @param transport transport diagnostico.
+     */
+    public DiagnosticPidExecutor(
+            @NonNull DiagnosticTransport transport) {
+
+        this(
+                transport,
+                new ReadOnlyDiagnosticPolicy()
+        );
+    }
+
+    /**
+     * Esegue una richiesta diagnostica utilizzando il target
+     * di compatibilità predefinito.
+     *
+     * Questo metodo mantiene la compatibilità con tutto il codice
+     * esistente che utilizza:
+     *
+     *     execute(definition)
+     *
+     * IMPORTANTE:
+     *
+     * PidDefinition non contiene il protocollo o il target ECU.
+     * Per questo motivo questa API utilizza un target di compatibilità
+     * fisso.
+     *
+     * Il percorso corretto per il nuovo catalogo ECU è:
+     *
+     *     execute(definition, target)
      *
      * @param definition definizione PID/DID.
      *
@@ -130,31 +173,60 @@ public class DiagnosticPidExecutor {
             @NonNull PidDefinition definition)
             throws IOException {
 
-        if (!connection.isConnected()) {
+        DiagnosticTargetDefinition target =
+                createDefaultTarget();
 
-            throw new IOException(
-                    "Connection non connessa."
-            );
-        }
+        return execute(
+                definition,
+                target
+        );
+    }
+
+    /**
+     * Esegue una richiesta diagnostica utilizzando esplicitamente
+     * il target ECU.
+     *
+     * Questo è il nuovo percorso catalog-driven.
+     *
+     * Il target viene normalmente ottenuto da:
+     *
+     *     EcuDefinition.getTarget()
+     *
+     * La policy viene applicata prima dell'invio.
+     *
+     * @param definition definizione PID/DID.
+     * @param target target diagnostico.
+     *
+     * @return risultato completo dell'esecuzione.
+     *
+     * @throws IOException errore di comunicazione.
+     */
+    @NonNull
+    public DiagnosticPidExecution execute(
+            @NonNull PidDefinition definition,
+            @NonNull DiagnosticTargetDefinition target)
+            throws IOException {
 
         /*
-         * Costruzione della request.
+         * ---------------------------------------------------------
+         * COSTRUZIONE REQUEST
+         * ---------------------------------------------------------
          */
+
         String request =
                 requestBuilder.build(
                         definition
                 );
-
 
         /*
          * ---------------------------------------------------------
          * POLICY DI SICUREZZA
          * ---------------------------------------------------------
          *
-         * La richiesta deve essere autorizzata prima di arrivare
-         * alla Connection.
+         * La policy viene valutata PRIMA del transport.
          *
-         * Questo è il punto di sicurezza invalicabile della V1.
+         * Una richiesta non autorizzata non deve mai arrivare
+         * alla Connection.
          */
         operationPolicy.validate(
                 definition,
@@ -162,31 +234,39 @@ public class DiagnosticPidExecutor {
         );
 
         /*
-         * Invio della request all'ELM327.
+         * ---------------------------------------------------------
+         * INVIO
+         * ---------------------------------------------------------
          */
-        connection.send(
-                request + "\r"
+
+        transport.send(
+                target,
+                request
         );
 
         /*
-         * Lettura della risposta raw.
+         * ---------------------------------------------------------
+         * RICEZIONE
+         * ---------------------------------------------------------
          */
+
         String response =
-                connection.receive();
+                transport.receive(
+                        target
+                );
 
         if (response == null) {
 
-            response = "";
+            response =
+                    "";
         }
 
         /*
-         * Il parser diagnostico viene eseguito solamente
-         * quando esiste una risposta.
-         *
-         * Una risposta vuota rimane comunque disponibile
-         * nel risultato, così il chiamante può decidere
-         * come gestirla.
+         * ---------------------------------------------------------
+         * PARSING
+         * ---------------------------------------------------------
          */
+
         DiagnosticResponseResult parsedResponse =
                 null;
 
@@ -201,13 +281,14 @@ public class DiagnosticPidExecutor {
                                 request
                         );
 
-            } catch (IllegalArgumentException exception) {
+            } catch (
+                    IllegalArgumentException exception) {
 
                 /*
                  * La risposta raw viene comunque conservata.
                  *
-                 * La classificazione definitiva dell'errore
-                 * rimane responsabilità del chiamante.
+                 * La classificazione definitiva viene lasciata
+                 * al chiamante.
                  */
             }
         }
@@ -220,13 +301,56 @@ public class DiagnosticPidExecutor {
     }
 
     /**
+     * Crea un target di compatibilità per il percorso
+     * legacy execute(PidDefinition).
+     *
+     * IMPORTANTE:
+     *
+     * Questo NON identifica un'ECU reale.
+     *
+     * Serve esclusivamente per non rompere i chiamanti
+     * esistenti che non possiedono un EcuDefinition.
+     *
+     * Una ECU reale dovrà utilizzare:
+     *
+     *     execute(definition, ecuDefinition.getTarget())
+     *
+     * @return target compatibile.
+     */
+    @NonNull
+    private DiagnosticTargetDefinition createDefaultTarget() {
+
+        return new DiagnosticTargetDefinition(
+                "CAN",
+                "7E0",
+                "7E8",
+                "PHYSICAL",
+                11
+        );
+    }
+
+    /**
+     * Restituisce il transport utilizzato.
+     *
+     * Utile soprattutto per test e per le future implementazioni
+     * del livello di comunicazione.
+     *
+     * @return transport.
+     */
+    @NonNull
+    public DiagnosticTransport getTransport() {
+
+        return transport;
+    }
+
+    /**
      * Risultato della singola esecuzione diagnostica.
      *
      * Contiene:
      *
-     * - request effettivamente inviata;
+     * - request;
      * - risposta raw;
-     * - risposta già interpretata, quando possibile.
+     * - risposta interpretata, quando disponibile.
      */
     public static class DiagnosticPidExecution {
 
@@ -244,8 +368,6 @@ public class DiagnosticPidExecutor {
 
         /**
          * Risposta diagnostica interpretata.
-         *
-         * Può essere null se la risposta non è interpretabile.
          */
         private final DiagnosticResponseResult parsedResponse;
 
@@ -285,7 +407,7 @@ public class DiagnosticPidExecutor {
         /**
          * Restituisce la risposta raw.
          *
-         * @return risposta.
+         * @return risposta raw.
          */
         @NonNull
         public String getRawResponse() {
@@ -294,7 +416,7 @@ public class DiagnosticPidExecutor {
         }
 
         /**
-         * Restituisce il risultato interpretato.
+         * Restituisce il risultato diagnostico interpretato.
          *
          * @return risultato oppure null.
          */

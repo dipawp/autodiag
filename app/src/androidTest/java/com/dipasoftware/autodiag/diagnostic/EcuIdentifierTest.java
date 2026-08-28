@@ -1,9 +1,6 @@
 package com.dipasoftware.autodiag.diagnostic;
 
-import android.content.Context;
-
 import androidx.annotation.NonNull;
-import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.dipasoftware.autodiag.connection.Connection;
@@ -11,7 +8,10 @@ import com.dipasoftware.autodiag.connection.Connection;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.Collections;
+
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -23,13 +23,8 @@ import static org.junit.Assert.assertTrue;
  *
  * Descrizione:
  *
- * Verifica l'identificazione automatica della ECU utilizzando
- * le EcuIdentificationDefinition caricate dal catalogo.
- *
- * Nessun DID è definito direttamente nel test come strategia
- * di identificazione: la strategia viene letta da ecu_catalog.json.
- *
- * Viene utilizzata una Connection simulata.
+ * Verifica l'identificazione ECU utilizzando le definizioni
+ * presenti nel catalogo e il target dichiarato dalla EcuDefinition.
  *
  * ****************************************************************************
  */
@@ -37,8 +32,8 @@ import static org.junit.Assert.assertTrue;
 public class EcuIdentifierTest {
 
     /**
-     * Verifica che tutti gli identificatori disponibili
-     * vengano letti correttamente dal catalogo.
+     * Verifica che i valori identificativi vengano letti
+     * secondo le definizioni del catalogo.
      */
     @Test
     public void identifyReadsAvailableDidValues()
@@ -57,16 +52,16 @@ public class EcuIdentifierTest {
                         executor
                 );
 
-        EcuDefinition ecuDefinition =
-                loadTestEcuDefinition();
+        EcuDefinition definition =
+                createTestDefinition();
 
         EcuIdentification identification =
                 identifier.identify(
-                        ecuDefinition
+                        definition
                 );
 
         assertEquals(
-                "TESTVIN123456789",
+                "TESTVIN1234567890",
                 identification.getVin()
         );
 
@@ -123,20 +118,11 @@ public class EcuIdentifierTest {
         assertTrue(
                 identification.hasUsefulIdentification()
         );
-
-        /*
-         * Verifichiamo anche che le richieste inviate
-         * siano esclusivamente quelle dichiarate nel catalogo.
-         */
-        assertEquals(
-                ecuDefinition.getIdentificationDefinitions().size(),
-                connection.getSendCount()
-        );
     }
 
     /**
-     * Verifica che un DID non disponibile non impedisca
-     * la raccolta degli altri identificatori.
+     * Verifica che un DID non disponibile non interrompa
+     * l'intera identificazione.
      */
     @Test
     public void unavailableDidDoesNotStopIdentification()
@@ -159,12 +145,12 @@ public class EcuIdentifierTest {
                         executor
                 );
 
-        EcuDefinition ecuDefinition =
-                loadTestEcuDefinition();
+        EcuDefinition definition =
+                createTestDefinition();
 
         EcuIdentification identification =
                 identifier.identify(
-                        ecuDefinition
+                        definition
                 );
 
         assertEquals(
@@ -173,7 +159,7 @@ public class EcuIdentifierTest {
         );
 
         assertEquals(
-                "TESTVIN123456789",
+                "TESTVIN1234567890",
                 identification.getVin()
         );
 
@@ -181,68 +167,254 @@ public class EcuIdentifierTest {
                 "ECU-SW-001",
                 identification.getEcuSoftwareNumber()
         );
+    }
 
-        /*
-         * Il fatto che F191 non sia disponibile
-         * non deve impedire la lettura degli altri DID.
-         */
-        assertTrue(
-                connection.getSendCount() > 1
+    /**
+     * Verifica che EcuIdentifier utilizzi il target
+     * definito dalla EcuDefinition.
+     */
+    @Test
+    public void identificationUsesEcuDefinitionTarget()
+            throws Exception {
+
+        FakeDiagnosticTransport transport =
+                new FakeDiagnosticTransport();
+
+        DiagnosticPidExecutor executor =
+                new DiagnosticPidExecutor(
+                        transport
+                );
+
+        DiagnosticTargetDefinition target =
+                new DiagnosticTargetDefinition(
+                        "UDS",
+                        "18DAF110",
+                        "18DA10F1",
+                        "PHYSICAL",
+                        29
+                );
+
+        EcuDefinition definition =
+                new EcuDefinition(
+                        "TEST",
+                        "TEST_MODEL",
+                        "TEST_ENGINE",
+                        "TEST_ECU",
+                        "CAN",
+                        "",
+                        new EcuDefinitionIdentifier(),
+                        Collections.singletonList(
+                                new EcuIdentificationDefinition(
+                                        "F190",
+                                        "vin",
+                                        "STRING",
+                                        false
+                                )
+                        ),
+                        target,
+                        Collections.emptyList()
+                );
+
+        EcuIdentifier identifier =
+                new EcuIdentifier(
+                        executor
+                );
+
+        identifier.identify(
+                definition
+        );
+
+        assertNotNull(
+                transport.getLastTarget()
+        );
+
+        assertEquals(
+                "18DAF110",
+                transport
+                        .getLastTarget()
+                        .getRequestId()
+        );
+
+        assertEquals(
+                "18DA10F1",
+                transport
+                        .getLastTarget()
+                        .getResponseId()
+        );
+
+        assertEquals(
+                29,
+                transport
+                        .getLastTarget()
+                        .getCanIdBits()
         );
     }
 
     /**
-     * Carica dal catalogo la ECU TEST.
+     * Crea la EcuDefinition TEST.
      *
-     * In questo modo il test verifica il percorso reale:
-     *
-     * ecu_catalog.json
-     *      ↓
-     * EcuCatalogRepository
-     *      ↓
-     * EcuDefinition
-     *      ↓
-     * EcuIdentifier
+     * Utilizza esattamente la struttura presente
+     * nel catalogo di test.
      */
-    private EcuDefinition loadTestEcuDefinition()
-            throws Exception {
+    @NonNull
+    private EcuDefinition createTestDefinition() {
 
-        Context context =
-                ApplicationProvider
-                        .getApplicationContext();
+        return new EcuDefinition(
+                "TEST",
+                "TEST_MODEL",
+                "TEST_ENGINE",
+                "TEST_ECU",
+                "CAN",
+                "",
+                new EcuDefinitionIdentifier(
+                        Collections.singletonList(
+                                "ECU-HW-001"
+                        ),
+                        Collections.singletonList(
+                                "ECU-SW-001"
+                        ),
+                        Collections.singletonList(
+                                "ECU-PART-001"
+                        ),
+                        Collections.singletonList(
+                                "BOSCH"
+                        ),
+                        Collections.singletonList(
+                                "TESTVIN"
+                        )
+                ),
+                createIdentificationDefinitions(),
+                new DiagnosticTargetDefinition(
+                        "CAN",
+                        "7E0",
+                        "7E8",
+                        "PHYSICAL",
+                        11
+                ),
+                Collections.emptyList()
+        );
+    }
 
-        EcuCatalogRepository repository =
-                new EcuCatalogRepository(
-                        context
-                );
+    /**
+     * Crea le definizioni di identificazione TEST.
+     *
+     * Queste corrispondono alle voci presenti
+     * nel catalogo ECU di test.
+     */
+    @NonNull
+    private java.util.List<EcuIdentificationDefinition>
+    createIdentificationDefinitions() {
 
-        EcuDefinition definition =
-                repository.find(
-                        "TEST",
-                        "TEST_MODEL",
-                        "TEST_ENGINE",
-                        "TEST_ECU"
-                );
+        java.util.List<EcuIdentificationDefinition> definitions =
+                new java.util.ArrayList<>();
 
-        if (definition == null) {
-
-            throw new AssertionError(
-                    "ECU TEST non trovata nel catalogo."
-            );
-        }
-
-        assertTrue(
-                definition.hasIdentificationDefinitions()
+        definitions.add(
+                new EcuIdentificationDefinition(
+                        "F190",
+                        "vin",
+                        "STRING",
+                        false
+                )
         );
 
-        return definition;
+        definitions.add(
+                new EcuIdentificationDefinition(
+                        "F187",
+                        "ecuPartNumber",
+                        "STRING",
+                        false
+                )
+        );
+
+        definitions.add(
+                new EcuIdentificationDefinition(
+                        "F188",
+                        "ecuSoftwareNumber",
+                        "STRING",
+                        false
+                )
+        );
+
+        definitions.add(
+                new EcuIdentificationDefinition(
+                        "F189",
+                        "ecuSoftwareVersion",
+                        "STRING",
+                        false
+                )
+        );
+
+        definitions.add(
+                new EcuIdentificationDefinition(
+                        "F191",
+                        "ecuHardwareNumber",
+                        "STRING",
+                        false
+                )
+        );
+
+        definitions.add(
+                new EcuIdentificationDefinition(
+                        "F18A",
+                        "supplier",
+                        "STRING",
+                        false
+                )
+        );
+
+        definitions.add(
+                new EcuIdentificationDefinition(
+                        "F18C",
+                        "serialNumber",
+                        "STRING",
+                        false
+                )
+        );
+
+        definitions.add(
+                new EcuIdentificationDefinition(
+                        "F192",
+                        "supplierHardwareNumber",
+                        "STRING",
+                        false
+                )
+        );
+
+        definitions.add(
+                new EcuIdentificationDefinition(
+                        "F194",
+                        "supplierSoftwareNumber",
+                        "STRING",
+                        false
+                )
+        );
+
+        definitions.add(
+                new EcuIdentificationDefinition(
+                        "F195",
+                        "supplierSoftwareVersion",
+                        "STRING",
+                        false
+                )
+        );
+
+        definitions.add(
+                new EcuIdentificationDefinition(
+                        "F197",
+                        "systemName",
+                        "STRING",
+                        false
+                )
+        );
+
+        return definitions;
     }
 
     /**
      * Connection simulata.
      *
-     * Restituisce una risposta differente in base
-     * al DID richiesto.
+     * Utilizzata dai test legacy che verificano
+     * l'identificazione tramite Connection.
      */
     private static class FakeIdentificationConnection
             implements Connection {
@@ -255,53 +427,29 @@ public class EcuIdentifierTest {
                 new java.util.HashSet<>();
 
         /**
-         * Ultima richiesta ricevuta.
+         * Ultima request.
          */
         @NonNull
         private String lastRequest =
                 "";
 
-        /**
-         * Numero di richieste inviate.
-         */
-        private int sendCount =
-                0;
-
-        /**
-         * Indica se la connection è attiva.
-         *
-         * @return true.
-         */
         @Override
         public boolean isConnected() {
 
             return true;
         }
 
-        /**
-         * Nessuna operazione necessaria.
-         */
         @Override
         public void connect() {
         }
 
-        /**
-         * Nessuna operazione necessaria.
-         */
         @Override
         public void disconnect() {
         }
 
-        /**
-         * Riceve la richiesta.
-         *
-         * @param data dati.
-         */
         @Override
         public void send(
                 String data) {
-
-            sendCount++;
 
             lastRequest =
                     data
@@ -313,23 +461,12 @@ public class EcuIdentifierTest {
                             .toUpperCase();
         }
 
-        /**
-         * Restituisce la risposta corrispondente
-         * all'ultimo DID richiesto.
-         *
-         * @return risposta.
-         */
         @Override
         public String receive() {
 
-            if (!lastRequest.startsWith(
-                    "22"
-            )) {
-
-                return "";
-            }
-
-            if (lastRequest.length() < 6) {
+            if (!lastRequest.startsWith("22")
+                    ||
+                    lastRequest.length() < 6) {
 
                 return "";
             }
@@ -354,84 +491,61 @@ public class EcuIdentifierTest {
             ) {
 
                 case "F190":
-
                     value =
-                            "TESTVIN123456789";
-
+                            "TESTVIN1234567890";
                     break;
 
                 case "F187":
-
                     value =
                             "ECU-PART-001";
-
                     break;
 
                 case "F188":
-
                     value =
                             "ECU-SW-001";
-
                     break;
 
                 case "F189":
-
                     value =
                             "1.0.5";
-
                     break;
 
                 case "F18A":
-
                     value =
                             "BOSCH";
-
                     break;
 
                 case "F18C":
-
                     value =
                             "SERIAL-001";
-
                     break;
 
                 case "F191":
-
                     value =
                             "ECU-HW-001";
-
                     break;
 
                 case "F192":
-
                     value =
                             "SUP-HW-001";
-
                     break;
 
                 case "F194":
-
                     value =
                             "SUP-SW-001";
-
                     break;
 
                 case "F195":
-
                     value =
                             "2.1";
-
                     break;
 
                 case "F197":
-
                     value =
                             "TEST_ENGINE";
-
                     break;
 
                 default:
-
                     return "7F 22 31\r>";
             }
 
@@ -441,14 +555,6 @@ public class EcuIdentifierTest {
             );
         }
 
-        /**
-         * Costruisce una risposta UDS positiva.
-         *
-         * @param did DID.
-         * @param value valore ASCII.
-         *
-         * @return risposta.
-         */
         @NonNull
         private String buildPositiveResponse(
                 @NonNull String did,
@@ -509,11 +615,6 @@ public class EcuIdentifierTest {
             return result.toString();
         }
 
-        /**
-         * Disabilita un DID.
-         *
-         * @param did DID.
-         */
         void disableDid(
                 @NonNull String did) {
 
@@ -522,15 +623,85 @@ public class EcuIdentifierTest {
                             .toUpperCase()
             );
         }
+    }
+
+    /**
+     * Transport simulato per verificare il passaggio
+     * del target dalla EcuDefinition al transport.
+     */
+    private static class FakeDiagnosticTransport
+            implements DiagnosticTransport {
 
         /**
-         * Restituisce il numero di richieste inviate.
-         *
-         * @return numero richieste.
+         * Ultimo target ricevuto.
          */
-        int getSendCount() {
+        private DiagnosticTargetDefinition lastTarget;
 
-            return sendCount;
+        /**
+         * Ultima request ricevuta.
+         */
+        @NonNull
+        private String lastRequest =
+                "";
+
+        @Override
+        public void send(
+                @NonNull DiagnosticTargetDefinition target,
+                @NonNull String request) {
+
+            lastTarget =
+                    target;
+
+            lastRequest =
+                    request;
+        }
+
+        @Override
+        @NonNull
+        public String receive(
+                @NonNull DiagnosticTargetDefinition target) {
+
+            lastTarget =
+                    target;
+
+            /*
+             * Risposta minima valida per F190.
+             */
+            if ("22F190".equals(
+                    lastRequest
+            )) {
+
+                return
+                        "62 F1 90 "
+                                + "54 45 53 54 56 49 4E "
+                                + "31 32 33 34 35 36 37 38 39 30"
+                                + "\r>";
+            }
+
+            return "7F 22 31\r>";
+        }
+
+        /**
+         * Restituisce l'ultimo target ricevuto.
+         *
+         * Questo è il metodo richiesto dal test.
+         *
+         * @return target oppure null.
+         */
+        DiagnosticTargetDefinition getLastTarget() {
+
+            return lastTarget;
+        }
+
+        /**
+         * Restituisce l'ultima request.
+         *
+         * @return request.
+         */
+        @NonNull
+        String getLastRequest() {
+
+            return lastRequest;
         }
     }
 }

@@ -38,13 +38,18 @@ import java.util.Map;
  *              +-- byteOffset
  *              +-- byteLength
  *
- * Le richieste vengono eseguite tramite DiagnosticPidExecutor,
- * che applica automaticamente la ReadOnlyDiagnosticPolicy.
+ * Il target diagnostico viene ottenuto direttamente da:
+ *
+ *      EcuDefinition.getTarget()
+ *
+ * e passato esplicitamente a DiagnosticPidExecutor.
+ *
+ * Tutte le richieste vengono quindi sottoposte alla
+ * DiagnosticOperationPolicy prima dell'invio.
  *
  * La classe NON identifica direttamente marca/modello/ECU.
  *
- * Produce invece EcuIdentification, che verrà successivamente
- * confrontato con il catalogo tramite EcuCatalogMatcher.
+ * Produce invece EcuIdentification.
  *
  * ****************************************************************************
  */
@@ -53,8 +58,8 @@ public class EcuIdentifier {
     /**
      * Esecutore delle richieste diagnostiche.
      *
-     * DiagnosticPidExecutor garantisce che la richiesta
-     * passi attraverso ReadOnlyDiagnosticPolicy.
+     * DiagnosticPidExecutor applica la policy di sicurezza
+     * prima di utilizzare il transport.
      */
     @NonNull
     private final DiagnosticPidExecutor executor;
@@ -72,13 +77,12 @@ public class EcuIdentifier {
     }
 
     /**
-     * Esegue l'identificazione utilizzando esclusivamente
-     * le definizioni presenti nel catalogo ECU.
+     * Esegue l'identificazione utilizzando:
+     *
+     * - EcuDefinition.getIdentificationDefinitions()
+     * - EcuDefinition.getTarget()
      *
      * Nessun DID è definito direttamente nel codice.
-     *
-     * Una singola lettura non disponibile non interrompe
-     * l'intero processo.
      *
      * @param ecuDefinition definizione ECU del catalogo.
      *
@@ -125,7 +129,17 @@ public class EcuIdentifier {
                 new LinkedHashMap<>();
 
         List<EcuIdentificationDefinition> definitions =
-                ecuDefinition.getIdentificationDefinitions();
+                ecuDefinition
+                        .getIdentificationDefinitions();
+
+        /*
+         * Target reale definito dal catalogo.
+         *
+         * Questo valore viene utilizzato per ogni richiesta
+         * di identificazione della ECU.
+         */
+        DiagnosticTargetDefinition target =
+                ecuDefinition.getTarget();
 
         for (
                 EcuIdentificationDefinition definition :
@@ -134,13 +148,15 @@ public class EcuIdentifier {
 
             String value =
                     readIdentificationDefinition(
-                            definition
+                            definition,
+                            target
                     );
 
             if (value.isEmpty()) {
 
                 /*
-                 * Il DID può non essere supportato dalla ECU.
+                 * Il DID può non essere supportato
+                 * dalla ECU.
                  *
                  * Non interrompiamo l'identificazione.
                  */
@@ -243,7 +259,7 @@ public class EcuIdentifier {
                 default:
 
                     /*
-                     * Campo specifico OEM/non ancora conosciuto
+                     * Campo OEM/non ancora conosciuto
                      * dal modello principale.
                      *
                      * Viene mantenuto senza perdita di informazione.
@@ -274,18 +290,18 @@ public class EcuIdentifier {
     }
 
     /**
-     * Versione semplificata mantenuta per compatibilità
-     * con eventuale codice precedente.
+     * Versione legacy mantenuta per compatibilità.
      *
-     * Non esistendo più DID hardcoded, senza una EcuDefinition
-     * non è possibile sapere quali identificatori debbano essere
-     * interrogati.
+     * Senza una EcuDefinition non è possibile sapere:
      *
-     * Questo metodo restituisce quindi un'identificazione vuota.
+     * - quali DID interrogare;
+     * - quale target utilizzare.
      *
-     * Il percorso corretto per la nuova architettura è:
+     * Per questo restituisce un'identificazione vuota.
      *
-     * identify(ecuDefinition)
+     * Il nuovo percorso corretto è:
+     *
+     *     identify(ecuDefinition)
      *
      * @return identificazione vuota.
      */
@@ -301,28 +317,27 @@ public class EcuIdentifier {
     }
 
     /**
-     * Legge una singola definizione di identificazione.
+     * Legge una singola definizione di identificazione
+     * utilizzando il target ECU fornito dal catalogo.
      *
-     * @param definition definizione catalogata.
+     * @param definition definizione identificazione.
+     * @param target target ECU.
      *
      * @return valore decodificato oppure stringa vuota.
      */
     @NonNull
     private String readIdentificationDefinition(
-            @NonNull EcuIdentificationDefinition definition) {
+            @NonNull EcuIdentificationDefinition definition,
+            @NonNull DiagnosticTargetDefinition target) {
 
         /*
          * ---------------------------------------------------------
          * SERVICE
          * ---------------------------------------------------------
          *
-         * Attualmente DiagnosticResponseParser supporta
-         * il servizio UDS 0x22 per questa fase.
-         *
-         * Altri servizi potranno essere aggiunti in futuro
-         * quando verranno implementati i relativi parser.
+         * Attualmente questa fase utilizza 0x22
+         * ReadDataByIdentifier.
          */
-
         if (!definition.isReadDataByIdentifier()) {
 
             return "";
@@ -337,16 +352,27 @@ public class EcuIdentifier {
                             definition
                     );
 
-        } catch (IllegalArgumentException exception) {
+        } catch (
+                IllegalArgumentException exception) {
 
             return "";
         }
 
         try {
 
-            DiagnosticPidExecutor.DiagnosticPidExecution execution =
+            /*
+             * IMPORTANTE:
+             *
+             * Utilizziamo il target esplicito della EcuDefinition.
+             *
+             * Non viene più utilizzato il target legacy 7E0/7E8
+             * quando stiamo identificando una ECU catalogata.
+             */
+            DiagnosticPidExecutor.DiagnosticPidExecution
+                    execution =
                     executor.execute(
-                            pidDefinition
+                            pidDefinition,
+                            target
                     );
 
             if (!execution.hasParsedResponse()) {
@@ -371,7 +397,8 @@ public class EcuIdentifier {
                     data
             );
 
-        } catch (Exception exception) {
+        } catch (
+                Exception exception) {
 
             /*
              * Una singola identificazione non disponibile
@@ -385,13 +412,13 @@ public class EcuIdentifier {
      * Costruisce una PidDefinition temporanea utilizzabile
      * dal normale percorso diagnostico.
      *
-     * La richiesta esplicita viene costruita come:
+     * La richiesta viene costruita come:
      *
-     * service + DID
+     *     service + DID
      *
      * Esempio:
      *
-     * 22 + F190 = 22F190
+     *     22 + F190 = 22F190
      *
      * @param definition definizione identificazione.
      *
@@ -434,19 +461,17 @@ public class EcuIdentifier {
     }
 
     /**
-     * Decodifica il payload ricevuto dalla ECU.
+     * Decodifica il payload ricevuto.
      *
-     * Decoder supportati in questa fase:
+     * Decoder supportati:
      *
      * STRING
      * ASCII
      * HEX
+     * RAW
      *
-     * Per decoder non ancora supportati viene restituita
-     * una stringa vuota.
-     *
-     * @param definition definizione identificatore.
-     * @param data dati ricevuti.
+     * @param definition definizione.
+     * @param data dati.
      *
      * @return valore decodificato.
      */
@@ -476,6 +501,7 @@ public class EcuIdentifier {
         switch (decoder) {
 
             case "STRING":
+
             case "ASCII":
 
                 return decodeText(
@@ -496,9 +522,6 @@ public class EcuIdentifier {
 
             default:
 
-                /*
-                 * Decoder non ancora implementato.
-                 */
                 return "";
         }
     }
@@ -575,8 +598,6 @@ public class EcuIdentifier {
     /**
      * Decodifica dati testuali.
      *
-     * Rimuove byte NUL e spazi di padding.
-     *
      * @param data dati.
      *
      * @return testo pulito.
@@ -605,7 +626,7 @@ public class EcuIdentifier {
     }
 
     /**
-     * Converte i dati in HEX.
+     * Converte dati binari in HEX.
      *
      * @param data dati.
      *
