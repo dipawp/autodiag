@@ -38,8 +38,10 @@ import java.util.List;
  *     identificativi con cui riconoscere la ECU;
  *
  * - identification:
- *     istruzioni catalogate su quali identificatori diagnostici
- *     leggere durante la discovery automatica.
+ *     istruzioni catalogate su quali identificatori leggere;
+ *
+ * - target:
+ *     informazioni di indirizzamento diagnostico della ECU.
  *
  * ****************************************************************************
  */
@@ -85,7 +87,7 @@ public class EcuDefinition {
 
     /**
      * Identificativi utilizzabili per il riconoscimento
-     * della ECU.
+     * automatico della ECU.
      */
     @NonNull
     private final EcuDefinitionIdentifier identifiers;
@@ -93,19 +95,18 @@ public class EcuDefinition {
     /**
      * Definizioni utilizzabili durante la fase
      * di identificazione automatica.
-     *
-     * Ogni elemento descrive:
-     *
-     * - service;
-     * - DID;
-     * - campo destinazione;
-     * - decoder;
-     * - obbligatorietà;
-     * - offset;
-     * - lunghezza.
      */
     @NonNull
     private final List<EcuIdentificationDefinition> identification;
+
+    /**
+     * Target diagnostico della ECU.
+     *
+     * Contiene le informazioni necessarie per l'indirizzamento
+     * della comunicazione.
+     */
+    @NonNull
+    private final DiagnosticTargetDefinition target;
 
     /**
      * Dataset diagnostici associati all'ECU.
@@ -115,6 +116,13 @@ public class EcuDefinition {
 
     /**
      * Costruttore compatibile con la versione originale.
+     *
+     * Utilizza:
+     *
+     * - identifiers vuoti;
+     * - identification vuota;
+     * - target vuoto;
+     * - dataset vuoto.
      *
      * @param brand marca.
      * @param model modello.
@@ -140,6 +148,9 @@ public class EcuDefinition {
                 pidFile,
                 new EcuDefinitionIdentifier(),
                 Collections.emptyList(),
+                createDefaultTarget(
+                        protocol
+                ),
                 Collections.emptyList()
         );
     }
@@ -174,6 +185,9 @@ public class EcuDefinition {
                 pidFile,
                 new EcuDefinitionIdentifier(),
                 Collections.emptyList(),
+                createDefaultTarget(
+                        protocol
+                ),
                 datasets
         );
     }
@@ -210,12 +224,18 @@ public class EcuDefinition {
                 pidFile,
                 identifiers,
                 Collections.emptyList(),
+                createDefaultTarget(
+                        protocol
+                ),
                 datasets
         );
     }
 
     /**
-     * Costruttore completo.
+     * Costruttore completo senza target esplicito.
+     *
+     * Il target predefinito viene costruito automaticamente
+     * in base al protocollo.
      *
      * @param brand marca.
      * @param model modello.
@@ -236,6 +256,48 @@ public class EcuDefinition {
             @NonNull String pidFile,
             @NonNull EcuDefinitionIdentifier identifiers,
             @NonNull List<EcuIdentificationDefinition> identification,
+            @NonNull List<DiagnosticDataset> datasets) {
+
+        this(
+                brand,
+                model,
+                engine,
+                ecu,
+                protocol,
+                pidFile,
+                identifiers,
+                identification,
+                createDefaultTarget(
+                        protocol
+                ),
+                datasets
+        );
+    }
+
+    /**
+     * Costruttore completo con target esplicito.
+     *
+     * @param brand marca.
+     * @param model modello.
+     * @param engine motore.
+     * @param ecu centralina.
+     * @param protocol protocollo.
+     * @param pidFile dataset principale.
+     * @param identifiers identificativi ECU.
+     * @param identification strategia identificazione.
+     * @param target target diagnostico.
+     * @param datasets dataset diagnostici.
+     */
+    public EcuDefinition(
+            @NonNull String brand,
+            @NonNull String model,
+            @NonNull String engine,
+            @NonNull String ecu,
+            @NonNull String protocol,
+            @NonNull String pidFile,
+            @NonNull EcuDefinitionIdentifier identifiers,
+            @NonNull List<EcuIdentificationDefinition> identification,
+            @NonNull DiagnosticTargetDefinition target,
             @NonNull List<DiagnosticDataset> datasets) {
 
         this.brand =
@@ -264,10 +326,80 @@ public class EcuDefinition {
                         identification
                 );
 
+        this.target =
+                target;
+
         this.datasets =
                 Collections.unmodifiableList(
                         datasets
                 );
+    }
+
+    /**
+     * Crea un target predefinito compatibile con il protocollo.
+     *
+     * IMPORTANTE:
+     *
+     * Il target predefinito NON rappresenta necessariamente
+     * l'indirizzamento reale della ECU.
+     *
+     * Serve esclusivamente per mantenere compatibilità
+     * con le definizioni precedenti che non avevano un target.
+     *
+     * Per un ECU reale il catalogo dovrà fornire il target esplicito.
+     *
+     * @param protocol protocollo.
+     *
+     * @return target predefinito.
+     */
+    @NonNull
+    private static DiagnosticTargetDefinition
+    createDefaultTarget(
+            @NonNull String protocol) {
+
+        String normalized =
+                protocol.trim()
+                        .toUpperCase();
+
+        /*
+         * Target convenzionale usato esclusivamente
+         * come valore di compatibilità.
+         *
+         * Non deve essere utilizzato per una ECU reale
+         * finché il catalogo non specifica il target.
+         */
+        if ("CAN".equals(normalized)
+                ||
+                "ISO_15765_4_CAN".equals(normalized)
+                ||
+                "UDS".equals(normalized)) {
+
+            return new DiagnosticTargetDefinition(
+                    normalized,
+                    "7E0",
+                    "7E8",
+                    "PHYSICAL",
+                    11
+            );
+        }
+
+        /*
+         * Per protocolli non-CAN manteniamo comunque
+         * un oggetto non nullo.
+         *
+         * Questi valori sono solo placeholder compatibili
+         * con il modello e NON vengono utilizzati dal transport
+         * finché il relativo protocollo non sarà implementato.
+         */
+        return new DiagnosticTargetDefinition(
+                normalized.isEmpty()
+                        ? "UNKNOWN"
+                        : normalized,
+                "0",
+                "0",
+                "PHYSICAL",
+                11
+        );
     }
 
     /**
@@ -382,6 +514,17 @@ public class EcuDefinition {
     }
 
     /**
+     * Restituisce il target diagnostico.
+     *
+     * @return target.
+     */
+    @NonNull
+    public DiagnosticTargetDefinition getTarget() {
+
+        return target;
+    }
+
+    /**
      * Restituisce tutti i dataset associati alla ECU.
      *
      * @return lista immutabile.
@@ -491,6 +634,8 @@ public class EcuDefinition {
                 identifiers +
                 ", identification=" +
                 identification.size() +
+                ", target=" +
+                target +
                 ", datasets=" +
                 datasets.size() +
                 '}';

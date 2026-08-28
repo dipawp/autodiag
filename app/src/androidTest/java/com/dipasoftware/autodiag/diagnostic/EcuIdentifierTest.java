@@ -1,5 +1,9 @@
 package com.dipasoftware.autodiag.diagnostic;
 
+import android.content.Context;
+
+import androidx.annotation.NonNull;
+import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.dipasoftware.autodiag.connection.Connection;
@@ -19,8 +23,13 @@ import static org.junit.Assert.assertTrue;
  *
  * Descrizione:
  *
- * Verifica l'identificazione automatica tramite DID UDS
- * senza utilizzare un veicolo reale.
+ * Verifica l'identificazione automatica della ECU utilizzando
+ * le EcuIdentificationDefinition caricate dal catalogo.
+ *
+ * Nessun DID è definito direttamente nel test come strategia
+ * di identificazione: la strategia viene letta da ecu_catalog.json.
+ *
+ * Viene utilizzata una Connection simulata.
  *
  * ****************************************************************************
  */
@@ -28,10 +37,8 @@ import static org.junit.Assert.assertTrue;
 public class EcuIdentifierTest {
 
     /**
-     * Verifica l'identificazione tramite VIN e dati ECU.
-     *
-     * La FakeConnection restituisce una risposta differente
-     * in funzione della request ricevuta.
+     * Verifica che tutti gli identificatori disponibili
+     * vengano letti correttamente dal catalogo.
      */
     @Test
     public void identifyReadsAvailableDidValues()
@@ -50,8 +57,13 @@ public class EcuIdentifierTest {
                         executor
                 );
 
+        EcuDefinition ecuDefinition =
+                loadTestEcuDefinition();
+
         EcuIdentification identification =
-                identifier.identify();
+                identifier.identify(
+                        ecuDefinition
+                );
 
         assertEquals(
                 "TESTVIN123456789",
@@ -111,11 +123,20 @@ public class EcuIdentifierTest {
         assertTrue(
                 identification.hasUsefulIdentification()
         );
+
+        /*
+         * Verifichiamo anche che le richieste inviate
+         * siano esclusivamente quelle dichiarate nel catalogo.
+         */
+        assertEquals(
+                ecuDefinition.getIdentificationDefinitions().size(),
+                connection.getSendCount()
+        );
     }
 
     /**
      * Verifica che un DID non disponibile non impedisca
-     * la raccolta degli altri identificativi.
+     * la raccolta degli altri identificatori.
      */
     @Test
     public void unavailableDidDoesNotStopIdentification()
@@ -138,8 +159,13 @@ public class EcuIdentifierTest {
                         executor
                 );
 
+        EcuDefinition ecuDefinition =
+                loadTestEcuDefinition();
+
         EcuIdentification identification =
-                identifier.identify();
+                identifier.identify(
+                        ecuDefinition
+                );
 
         assertEquals(
                 "",
@@ -155,10 +181,68 @@ public class EcuIdentifierTest {
                 "ECU-SW-001",
                 identification.getEcuSoftwareNumber()
         );
+
+        /*
+         * Il fatto che F191 non sia disponibile
+         * non deve impedire la lettura degli altri DID.
+         */
+        assertTrue(
+                connection.getSendCount() > 1
+        );
+    }
+
+    /**
+     * Carica dal catalogo la ECU TEST.
+     *
+     * In questo modo il test verifica il percorso reale:
+     *
+     * ecu_catalog.json
+     *      ↓
+     * EcuCatalogRepository
+     *      ↓
+     * EcuDefinition
+     *      ↓
+     * EcuIdentifier
+     */
+    private EcuDefinition loadTestEcuDefinition()
+            throws Exception {
+
+        Context context =
+                ApplicationProvider
+                        .getApplicationContext();
+
+        EcuCatalogRepository repository =
+                new EcuCatalogRepository(
+                        context
+                );
+
+        EcuDefinition definition =
+                repository.find(
+                        "TEST",
+                        "TEST_MODEL",
+                        "TEST_ENGINE",
+                        "TEST_ECU"
+                );
+
+        if (definition == null) {
+
+            throw new AssertionError(
+                    "ECU TEST non trovata nel catalogo."
+            );
+        }
+
+        assertTrue(
+                definition.hasIdentificationDefinitions()
+        );
+
+        return definition;
     }
 
     /**
      * Connection simulata.
+     *
+     * Restituisce una risposta differente in base
+     * al DID richiesto.
      */
     private static class FakeIdentificationConnection
             implements Connection {
@@ -166,11 +250,27 @@ public class EcuIdentifierTest {
         /**
          * DID disabilitati.
          */
+        @NonNull
         private final java.util.Set<String> disabledDids =
                 new java.util.HashSet<>();
 
         /**
-         * Stato connessione.
+         * Ultima richiesta ricevuta.
+         */
+        @NonNull
+        private String lastRequest =
+                "";
+
+        /**
+         * Numero di richieste inviate.
+         */
+        private int sendCount =
+                0;
+
+        /**
+         * Indica se la connection è attiva.
+         *
+         * @return true.
          */
         @Override
         public boolean isConnected() {
@@ -193,15 +293,15 @@ public class EcuIdentifierTest {
         }
 
         /**
-         * Request ignorata perché receive()
-         * costruisce la risposta in base all'ultimo comando.
+         * Riceve la richiesta.
+         *
+         * @param data dati.
          */
-        private String lastRequest =
-                "";
-
         @Override
         public void send(
                 String data) {
+
+            sendCount++;
 
             lastRequest =
                     data
@@ -213,12 +313,23 @@ public class EcuIdentifierTest {
                             .toUpperCase();
         }
 
+        /**
+         * Restituisce la risposta corrispondente
+         * all'ultimo DID richiesto.
+         *
+         * @return risposta.
+         */
         @Override
         public String receive() {
 
-            if (!lastRequest.startsWith("22")
-                    ||
-                    lastRequest.length() < 6) {
+            if (!lastRequest.startsWith(
+                    "22"
+            )) {
+
+                return "";
+            }
+
+            if (lastRequest.length() < 6) {
 
                 return "";
             }
@@ -238,64 +349,89 @@ public class EcuIdentifierTest {
 
             String value;
 
-            switch (did) {
+            switch (
+                    did
+            ) {
 
                 case "F190":
+
                     value =
                             "TESTVIN123456789";
+
                     break;
 
                 case "F187":
+
                     value =
                             "ECU-PART-001";
+
                     break;
 
                 case "F188":
+
                     value =
                             "ECU-SW-001";
+
                     break;
 
                 case "F189":
+
                     value =
                             "1.0.5";
+
                     break;
 
                 case "F18A":
+
                     value =
                             "BOSCH";
+
                     break;
 
                 case "F18C":
+
                     value =
                             "SERIAL-001";
+
                     break;
 
                 case "F191":
+
                     value =
                             "ECU-HW-001";
+
                     break;
 
                 case "F192":
+
                     value =
                             "SUP-HW-001";
+
                     break;
 
                 case "F194":
+
                     value =
                             "SUP-SW-001";
+
                     break;
 
                 case "F195":
+
                     value =
                             "2.1";
+
                     break;
 
                 case "F197":
+
                     value =
                             "TEST_ENGINE";
+
                     break;
 
                 default:
+
                     return "7F 22 31\r>";
             }
 
@@ -305,9 +441,18 @@ public class EcuIdentifierTest {
             );
         }
 
+        /**
+         * Costruisce una risposta UDS positiva.
+         *
+         * @param did DID.
+         * @param value valore ASCII.
+         *
+         * @return risposta.
+         */
+        @NonNull
         private String buildPositiveResponse(
-                String did,
-                String value) {
+                @NonNull String did,
+                @NonNull String value) {
 
             byte[] bytes =
                     value.getBytes(
@@ -339,8 +484,10 @@ public class EcuIdentifierTest {
                     )
             );
 
-            for (byte valueByte :
-                    bytes) {
+            for (
+                    byte valueByte :
+                    bytes
+            ) {
 
                 result.append(
                         " "
@@ -362,12 +509,28 @@ public class EcuIdentifierTest {
             return result.toString();
         }
 
+        /**
+         * Disabilita un DID.
+         *
+         * @param did DID.
+         */
         void disableDid(
-                String did) {
+                @NonNull String did) {
 
             disabledDids.add(
-                    did.toUpperCase()
+                    did.trim()
+                            .toUpperCase()
             );
+        }
+
+        /**
+         * Restituisce il numero di richieste inviate.
+         *
+         * @return numero richieste.
+         */
+        int getSendCount() {
+
+            return sendCount;
         }
     }
 }

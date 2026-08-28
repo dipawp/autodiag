@@ -35,42 +35,99 @@
           "did": "F190",
           "field": "vin",
           "decoder": "STRING",
-          "required": false
+          "required": false,
+          "byteOffset": 0,
+          "byteLength": 17
         },
         {
           "service": "22",
           "did": "F187",
           "field": "ecuPartNumber",
           "decoder": "STRING",
-          "required": false
+          "required": false,
+          "byteOffset": 0,
+          "byteLength": 0
         },
         {
           "service": "22",
           "did": "F188",
           "field": "ecuSoftwareNumber",
           "decoder": "STRING",
-          "required": false
+          "required": false,
+          "byteOffset": 0,
+          "byteLength": 0
         },
         {
           "service": "22",
           "did": "F189",
           "field": "ecuSoftwareVersion",
           "decoder": "STRING",
-          "required": false
+          "required": false,
+          "byteOffset": 0,
+          "byteLength": 0
         },
         {
           "service": "22",
           "did": "F191",
           "field": "ecuHardwareNumber",
           "decoder": "STRING",
-          "required": false
+          "required": false,
+          "byteOffset": 0,
+          "byteLength": 0
         },
         {
           "service": "22",
           "did": "F18A",
           "field": "supplier",
           "decoder": "STRING",
-          "required": false
+          "required": false,
+          "byteOffset": 0,
+          "byteLength": 0
+        },
+        {
+          "service": "22",
+          "did": "F18C",
+          "field": "serialNumber",
+          "decoder": "STRING",
+          "required": false,
+          "byteOffset": 0,
+          "byteLength": 0
+        },
+        {
+          "service": "22",
+          "did": "F192",
+          "field": "supplierHardwareNumber",
+          "decoder": "STRING",
+          "required": false,
+          "byteOffset": 0,
+          "byteLength": 0
+        },
+        {
+          "service": "22",
+          "did": "F194",
+          "field": "supplierSoftwareNumber",
+          "decoder": "STRING",
+          "required": false,
+          "byteOffset": 0,
+          "byteLength": 0
+        },
+        {
+          "service": "22",
+          "did": "F195",
+          "field": "supplierSoftwareVersion",
+          "decoder": "STRING",
+          "required": false,
+          "byteOffset": 0,
+          "byteLength": 0
+        },
+        {
+          "service": "22",
+          "did": "F197",
+          "field": "systemName",
+          "decoder": "STRING",
+          "required": false,
+          "byteOffset": 0,
+          "byteLength": 0
         }
       ],
 

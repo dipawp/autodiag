@@ -361,7 +361,7 @@ public class EcuCatalogRepositoryTest {
                 ecu.getIdentificationDefinitions();
 
         assertEquals(
-                6,
+                11,
                 definitions.size()
         );
 
