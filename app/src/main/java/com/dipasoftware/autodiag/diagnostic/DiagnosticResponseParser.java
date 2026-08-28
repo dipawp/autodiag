@@ -119,6 +119,13 @@ public class DiagnosticResponseParser {
                         request
                 );
 
+            case VEHICLE_INFORMATION:
+
+                return parseVehicleInformation(
+                        response,
+                        request
+                );
+
             case READ_DATA_BY_IDENTIFIER:
 
                 return parseUds(
