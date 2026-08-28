@@ -21,9 +21,16 @@ import java.util.List;
  * Traduce un DiagnosticTargetDefinition in un piano di configurazione
  * ELM327.
  *
- * Questa classe NON invia i comandi.
+ * La classe NON invia i comandi.
  *
  * Produce esclusivamente Elm327CommandPlan.
+ *
+ * Regole:
+ *
+ * - bitrate 0    = non specificato -> ATSP0
+ * - 500 kbit/s
+ *      11 bit     -> ATSP6
+ *      29 bit     -> ATSP7
  *
  * ****************************************************************************
  */
@@ -61,9 +68,9 @@ public class Elm327AdapterConfigurator
     }
 
     /**
-     * Configura logicamente l'adapter per il target.
+     * Registra il target e genera il piano.
      *
-     * Nessun comando viene ancora inviato fisicamente.
+     * Nessuna comunicazione fisica viene effettuata.
      *
      * @param target target diagnostico.
      *
@@ -95,9 +102,9 @@ public class Elm327AdapterConfigurator
     }
 
     /**
-     * Ripristina lo stato del configuratore.
+     * Ripristina la configurazione logica.
      *
-     * @throws IOException non utilizzata nella configurazione logica.
+     * @throws IOException non utilizzata.
      */
     @Override
     public void reset()
@@ -114,20 +121,25 @@ public class Elm327AdapterConfigurator
     }
 
     /**
-     * Costruisce il piano di configurazione ELM327.
+     * Costruisce il piano ELM327.
      *
-     * Per CAN standard:
+     * Regole:
      *
-     *     11 bit / 500 kbit/s -> ATSP6
+     * bitrate = 0:
      *
-     * Per CAN extended:
+     *     ATSP0
      *
-     *     29 bit / 500 kbit/s -> ATSP7
+     *     Il catalogo non specifica il bitrate, quindi
+     *     non facciamo assunzioni.
      *
-     * Per bitrate diverso da 500 kbit/s non utilizziamo
-     * una mappatura inventata: il target viene rifiutato.
+     * bitrate = 500:
      *
-     * @param target target.
+     *     11 bit -> ATSP6
+     *     29 bit -> ATSP7
+     *
+     * Altri bitrate non sono ancora mappati.
+     *
+     * @param target target diagnostico.
      *
      * @return piano.
      *
@@ -146,19 +158,55 @@ public class Elm327AdapterConfigurator
             );
         }
 
-        /*
-         * ---------------------------------------------------------
-         * BITRATE
-         * ---------------------------------------------------------
-         *
-         * La numerazione standard ELM327 che utilizziamo qui
-         * corrisponde ai due protocolli ISO 15765-4 CAN a
-         * 500 kbit/s.
-         */
         int bitrate =
                 target.getCanBitrateKbps();
 
-        if (bitrate != 500) {
+        List<String> commands =
+                new ArrayList<>();
+
+        /*
+         * ---------------------------------------------------------
+         * SELEZIONE PROTOCOLLO ELM327
+         * ---------------------------------------------------------
+         *
+         * 0 = bitrate non specificato
+         *     -> lasciamo all'ELM327 il protocollo automatico.
+         */
+        if (bitrate == 0) {
+
+            commands.add(
+                    "ATSP0"
+            );
+
+        } else if (bitrate == 500) {
+
+            /*
+             * 6 = ISO 15765-4 CAN 11 bit / 500 kbaud
+             */
+            if (target.isStandardCanId()) {
+
+                commands.add(
+                        "ATSP6"
+                );
+
+                /*
+                 * 7 = ISO 15765-4 CAN 29 bit / 500 kbaud
+                 */
+            } else if (target.isExtendedCanId()) {
+
+                commands.add(
+                        "ATSP7"
+                );
+
+            } else {
+
+                throw new IOException(
+                        "Dimensione CAN ID non supportata: "
+                                + target.getCanIdBits()
+                );
+            }
+
+        } else {
 
             throw new IOException(
                     "Bitrate CAN non supportato dal "
@@ -168,64 +216,19 @@ public class Elm327AdapterConfigurator
             );
         }
 
-        List<String> commands =
-                new ArrayList<>();
-
-        /*
-         * ---------------------------------------------------------
-         * PROTOCOLLO ELM327
-         * ---------------------------------------------------------
-         *
-         * 6 = ISO 15765-4 CAN 11 bit, 500 kbaud
-         * 7 = ISO 15765-4 CAN 29 bit, 500 kbaud
-         */
-        if (target.isStandardCanId()) {
-
-            commands.add(
-                    "ATSP6"
-            );
-
-        } else if (target.isExtendedCanId()) {
-
-            commands.add(
-                    "ATSP7"
-            );
-
-        } else {
-
-            throw new IOException(
-                    "Dimensione CAN ID non supportata: "
-                            + target.getCanIdBits()
-            );
-        }
-
         /*
          * ---------------------------------------------------------
          * HEADER DI TRASMISSIONE
          * ---------------------------------------------------------
-         *
-         * AT SH xyz per CAN 11 bit.
-         *
-         * AT SH xxxxxxxx per CAN extended.
          */
-        if (target.isStandardCanId()) {
-
-            commands.add(
-                    "ATSH "
-                            + target.getRequestId()
-            );
-
-        } else {
-
-            commands.add(
-                    "ATSH "
-                            + target.getRequestId()
-            );
-        }
+        commands.add(
+                "ATSH "
+                        + target.getRequestId()
+        );
 
         /*
          * ---------------------------------------------------------
-         * FILTRO RICEZIONE
+         * FILTRO DI RICEZIONE
          * ---------------------------------------------------------
          */
         commands.add(
@@ -235,11 +238,8 @@ public class Elm327AdapterConfigurator
 
         /*
          * ---------------------------------------------------------
-         * FORMATO OUTPUT
+         * OUTPUT ELM327
          * ---------------------------------------------------------
-         *
-         * Headers off.
-         * Echo off.
          */
         commands.add(
                 "ATE0"
@@ -277,7 +277,7 @@ public class Elm327AdapterConfigurator
     }
 
     /**
-     * Indica se configurato.
+     * Indica se il configuratore è attivo.
      *
      * @return true se configurato.
      */
@@ -300,5 +300,73 @@ public class Elm327AdapterConfigurator
         }
 
         return lastPlan.getCommands();
+    }
+
+
+    /**
+     * Esegue il piano di configurazione sull'ELM327.
+     *
+     * Ogni comando viene eseguito in ordine.
+     *
+     * Se un comando restituisce una risposta diversa da OK,
+     * la configurazione viene interrotta immediatamente.
+     *
+     * @param executor esecutore dei comandi AT.
+     * @throws IOException errore di comunicazione o configurazione.
+     */
+    public void executePlan(
+            @NonNull Elm327CommandExecutor executor)
+            throws IOException {
+
+        if (lastPlan == null) {
+
+            throw new IOException(
+                    "Nessun piano di configurazione disponibile."
+            );
+        }
+
+        configured =
+                false;
+
+        for (
+                String command :
+                lastPlan.getCommands()
+        ) {
+
+            executor.executeExpectOk(
+                    command
+            );
+        }
+
+        configured =
+                true;
+    }
+
+    /**
+     * Costruisce ed esegue il piano per il target indicato.
+     *
+     * @param target target diagnostico.
+     * @param executor esecutore AT.
+     *
+     * @throws IOException errore di configurazione.
+     */
+    public void configureAndExecute(
+            @NonNull DiagnosticTargetDefinition target,
+            @NonNull Elm327CommandExecutor executor)
+            throws IOException {
+
+        /*
+         * Costruzione del piano.
+         */
+        configure(
+                target
+        );
+
+        /*
+         * Esecuzione del piano.
+         */
+        executePlan(
+                executor
+        );
     }
 }
