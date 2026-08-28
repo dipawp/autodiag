@@ -1805,4 +1805,40 @@ public class Elm327Manager {
                 new ReadOnlyDiagnosticPolicy()
         );
     }
+
+
+    /**
+     * Crea un EcuIdentifier utilizzando il percorso diagnostico
+     * catalog-driven.
+     *
+     * Il percorso utilizza:
+     *
+     * EcuIdentifier
+     *      ↓
+     * DiagnosticPidExecutor
+     *      ↓
+     * DiagnosticTransport
+     *      ↓
+     * Elm327DiagnosticTransport
+     *      ↓
+     * Elm327AdapterConfigurator
+     *      ↓
+     * Elm327ConfigurationExecutor
+     *      ↓
+     * Elm327Manager
+     *      ↓
+     * Connection
+     *
+     * Il DiagnosticPidExecutor legacy già presente nel manager
+     * non viene modificato.
+     *
+     * @return EcuIdentifier catalog-driven.
+     */
+    @NonNull
+    public EcuIdentifier createCatalogEcuIdentifier() {
+
+        return new EcuIdentifier(
+                createCatalogDiagnosticPidExecutor()
+        );
+    }
 }
