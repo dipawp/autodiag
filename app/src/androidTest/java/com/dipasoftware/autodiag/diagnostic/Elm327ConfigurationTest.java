@@ -321,4 +321,40 @@ public class Elm327ConfigurationTest {
                 converted.getCanIdBits()
         );
     }
+
+    @Test
+    public void canBitrateIsPreserved() {
+
+        DiagnosticTargetDefinition target =
+                new DiagnosticTargetDefinition(
+                        "CAN",
+                        "7E0",
+                        "7E8",
+                        "PHYSICAL",
+                        11,
+                        500
+                );
+
+        Elm327Configuration configuration =
+                new Elm327Configuration(
+                        target
+                );
+
+        assertEquals(
+                500,
+                configuration.getCanBitrateKbps()
+        );
+
+        assertTrue(
+                configuration.hasCanBitrate()
+        );
+
+        DiagnosticTargetDefinition restored =
+                configuration.toDiagnosticTarget();
+
+        assertEquals(
+                500,
+                restored.getCanBitrateKbps()
+        );
+    }
 }

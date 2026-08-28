@@ -3,6 +3,9 @@ package com.dipasoftware.autodiag.diagnostic;
 import androidx.annotation.NonNull;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * ****************************************************************************
@@ -15,23 +18,12 @@ import java.io.IOException;
  *
  * Descrizione:
  *
- * Implementazione del configuratore per un adapter ELM327.
+ * Traduce un DiagnosticTargetDefinition in un piano di configurazione
+ * ELM327.
  *
- * ATTENZIONE:
+ * Questa classe NON invia i comandi.
  *
- * Questa prima versione NON invia ancora comandi AT.
- *
- * Memorizza soltanto la configurazione richiesta.
- *
- * Questo ci permette di separare:
- *
- * - target diagnostico;
- * - configurazione adapter;
- * - richiesta diagnostica.
- *
- * La traduzione in comandi AT verrà effettuata in un passaggio
- * successivo, dopo aver verificato esattamente il comportamento
- * dell'ELM327 utilizzato dal progetto.
+ * Produce esclusivamente Elm327CommandPlan.
  *
  * ****************************************************************************
  */
@@ -44,7 +36,12 @@ public class Elm327AdapterConfigurator
     private DiagnosticTargetDefinition configuredTarget;
 
     /**
-     * Indica se l'adapter risulta configurato.
+     * Ultimo piano generato.
+     */
+    private Elm327CommandPlan lastPlan;
+
+    /**
+     * Stato del configuratore.
      */
     private boolean configured;
 
@@ -56,19 +53,21 @@ public class Elm327AdapterConfigurator
         configuredTarget =
                 null;
 
+        lastPlan =
+                null;
+
         configured =
                 false;
     }
 
     /**
-     * Registra il target richiesto.
+     * Configura logicamente l'adapter per il target.
      *
-     * In questa versione non vengono ancora inviati comandi
-     * all'ELM327.
+     * Nessun comando viene ancora inviato fisicamente.
      *
-     * @param target target.
+     * @param target target diagnostico.
      *
-     * @throws IOException se il target non è valido.
+     * @throws IOException target non supportato.
      */
     @Override
     public void configure(
@@ -78,10 +77,15 @@ public class Elm327AdapterConfigurator
         if (!target.isCan()) {
 
             throw new IOException(
-                    "Il target non è compatibile con "
-                            + "la configurazione ELM327 CAN."
+                    "Il target non è compatibile "
+                            + "con ELM327 CAN."
             );
         }
+
+        lastPlan =
+                buildCommandPlan(
+                        target
+                );
 
         configuredTarget =
                 target;
@@ -91,9 +95,9 @@ public class Elm327AdapterConfigurator
     }
 
     /**
-     * Rimuove il target corrente.
+     * Ripristina lo stato del configuratore.
      *
-     * @throws IOException non utilizzata nella V1.
+     * @throws IOException non utilizzata nella configurazione logica.
      */
     @Override
     public void reset()
@@ -102,8 +106,153 @@ public class Elm327AdapterConfigurator
         configuredTarget =
                 null;
 
+        lastPlan =
+                null;
+
         configured =
                 false;
+    }
+
+    /**
+     * Costruisce il piano di configurazione ELM327.
+     *
+     * Per CAN standard:
+     *
+     *     11 bit / 500 kbit/s -> ATSP6
+     *
+     * Per CAN extended:
+     *
+     *     29 bit / 500 kbit/s -> ATSP7
+     *
+     * Per bitrate diverso da 500 kbit/s non utilizziamo
+     * una mappatura inventata: il target viene rifiutato.
+     *
+     * @param target target.
+     *
+     * @return piano.
+     *
+     * @throws IOException configurazione non supportata.
+     */
+    @NonNull
+    public Elm327CommandPlan buildCommandPlan(
+            @NonNull DiagnosticTargetDefinition target)
+            throws IOException {
+
+        if (!target.isCan()) {
+
+            throw new IOException(
+                    "Protocollo non CAN non supportato "
+                            + "dal configuratore ELM327."
+            );
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * BITRATE
+         * ---------------------------------------------------------
+         *
+         * La numerazione standard ELM327 che utilizziamo qui
+         * corrisponde ai due protocolli ISO 15765-4 CAN a
+         * 500 kbit/s.
+         */
+        int bitrate =
+                target.getCanBitrateKbps();
+
+        if (bitrate != 500) {
+
+            throw new IOException(
+                    "Bitrate CAN non supportato dal "
+                            + "configuratore ELM327: "
+                            + bitrate
+                            + " kbit/s."
+            );
+        }
+
+        List<String> commands =
+                new ArrayList<>();
+
+        /*
+         * ---------------------------------------------------------
+         * PROTOCOLLO ELM327
+         * ---------------------------------------------------------
+         *
+         * 6 = ISO 15765-4 CAN 11 bit, 500 kbaud
+         * 7 = ISO 15765-4 CAN 29 bit, 500 kbaud
+         */
+        if (target.isStandardCanId()) {
+
+            commands.add(
+                    "ATSP6"
+            );
+
+        } else if (target.isExtendedCanId()) {
+
+            commands.add(
+                    "ATSP7"
+            );
+
+        } else {
+
+            throw new IOException(
+                    "Dimensione CAN ID non supportata: "
+                            + target.getCanIdBits()
+            );
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * HEADER DI TRASMISSIONE
+         * ---------------------------------------------------------
+         *
+         * AT SH xyz per CAN 11 bit.
+         *
+         * AT SH xxxxxxxx per CAN extended.
+         */
+        if (target.isStandardCanId()) {
+
+            commands.add(
+                    "ATSH "
+                            + target.getRequestId()
+            );
+
+        } else {
+
+            commands.add(
+                    "ATSH "
+                            + target.getRequestId()
+            );
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * FILTRO RICEZIONE
+         * ---------------------------------------------------------
+         */
+        commands.add(
+                "ATCRA "
+                        + target.getResponseId()
+        );
+
+        /*
+         * ---------------------------------------------------------
+         * FORMATO OUTPUT
+         * ---------------------------------------------------------
+         *
+         * Headers off.
+         * Echo off.
+         */
+        commands.add(
+                "ATE0"
+        );
+
+        commands.add(
+                "ATH0"
+        );
+
+        return new Elm327CommandPlan(
+                target,
+                commands
+        );
     }
 
     /**
@@ -111,18 +260,45 @@ public class Elm327AdapterConfigurator
      *
      * @return target oppure null.
      */
-    public DiagnosticTargetDefinition getConfiguredTarget() {
+    public DiagnosticTargetDefinition
+    getConfiguredTarget() {
 
         return configuredTarget;
     }
 
     /**
-     * Indica se esiste una configurazione attiva.
+     * Restituisce l'ultimo piano.
+     *
+     * @return piano oppure null.
+     */
+    public Elm327CommandPlan getLastPlan() {
+
+        return lastPlan;
+    }
+
+    /**
+     * Indica se configurato.
      *
      * @return true se configurato.
      */
     public boolean isConfigured() {
 
         return configured;
+    }
+
+    /**
+     * Restituisce i comandi pianificati.
+     *
+     * @return lista immutabile.
+     */
+    @NonNull
+    public List<String> getPlannedCommands() {
+
+        if (lastPlan == null) {
+
+            return Collections.emptyList();
+        }
+
+        return lastPlan.getCommands();
     }
 }

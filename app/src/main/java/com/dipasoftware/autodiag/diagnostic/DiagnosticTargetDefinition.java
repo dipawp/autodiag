@@ -16,7 +16,8 @@ import androidx.annotation.NonNull;
  * Definisce il target diagnostico necessario per comunicare
  * con una specifica ECU.
  *
- * La classe contiene esclusivamente informazioni di indirizzamento.
+ * La classe contiene esclusivamente informazioni di indirizzamento
+ * e configurazione del bus diagnostico.
  *
  * NON invia comandi.
  * NON comunica con la Connection.
@@ -26,19 +27,8 @@ import androidx.annotation.NonNull;
  * - CAN 11 bit;
  * - CAN 29 bit;
  * - addressing fisico;
- * - addressing funzionale.
- *
- * Esempi:
- *
- * 11 bit:
- *
- * request  = 7E0
- * response = 7E8
- *
- * 29 bit:
- *
- * request  = 18DAF110
- * response = 18DA10F1
+ * - addressing funzionale;
+ * - bitrate CAN.
  *
  * ****************************************************************************
  */
@@ -46,14 +36,6 @@ public class DiagnosticTargetDefinition {
 
     /**
      * Protocollo diagnostico.
-     *
-     * Esempi:
-     *
-     * CAN
-     * ISO_15765_4_CAN
-     * UDS
-     * KLINE
-     * DOIP
      */
     @NonNull
     private final String protocol;
@@ -72,11 +54,6 @@ public class DiagnosticTargetDefinition {
 
     /**
      * Modalità addressing.
-     *
-     * Esempi:
-     *
-     * PHYSICAL
-     * FUNCTIONAL
      */
     @NonNull
     private final String addressingMode;
@@ -84,25 +61,37 @@ public class DiagnosticTargetDefinition {
     /**
      * Lunghezza identificatore CAN.
      *
-     * 11 oppure 29.
+     * Valori:
+     *
+     * 11
+     * 29
      */
     private final int canIdBits;
 
     /**
-     * Costruttore.
+     * Bitrate CAN in kbit/s.
+     *
+     * Valore 0 = non specificato.
+     */
+    private final int canBitrateKbps;
+
+    /**
+     * Costruttore completo.
      *
      * @param protocol protocollo.
      * @param requestId request CAN ID.
      * @param responseId response CAN ID.
      * @param addressingMode addressing mode.
-     * @param canIdBits lunghezza CAN ID: 11 oppure 29.
+     * @param canIdBits lunghezza CAN ID.
+     * @param canBitrateKbps bitrate CAN in kbit/s.
      */
     public DiagnosticTargetDefinition(
             @NonNull String protocol,
             @NonNull String requestId,
             @NonNull String responseId,
             @NonNull String addressingMode,
-            int canIdBits) {
+            int canIdBits,
+            int canBitrateKbps) {
 
         this.protocol =
                 protocol.trim()
@@ -123,8 +112,18 @@ public class DiagnosticTargetDefinition {
             );
         }
 
+        if (canBitrateKbps < 0) {
+
+            throw new IllegalArgumentException(
+                    "canBitrateKbps non può essere negativo."
+            );
+        }
+
         this.canIdBits =
                 canIdBits;
+
+        this.canBitrateKbps =
+                canBitrateKbps;
 
         this.requestId =
                 normalizeCanId(
@@ -153,7 +152,35 @@ public class DiagnosticTargetDefinition {
     /**
      * Costruttore compatibile con la versione precedente.
      *
-     * Assume CAN 11 bit.
+     * Il bitrate non viene specificato.
+     *
+     * @param protocol protocollo.
+     * @param requestId request CAN ID.
+     * @param responseId response CAN ID.
+     * @param addressingMode addressing mode.
+     * @param canIdBits lunghezza CAN ID.
+     */
+    public DiagnosticTargetDefinition(
+            @NonNull String protocol,
+            @NonNull String requestId,
+            @NonNull String responseId,
+            @NonNull String addressingMode,
+            int canIdBits) {
+
+        this(
+                protocol,
+                requestId,
+                responseId,
+                addressingMode,
+                canIdBits,
+                0
+        );
+    }
+
+    /**
+     * Costruttore compatibile con la prima versione.
+     *
+     * Assume CAN 11 bit e bitrate non specificato.
      *
      * @param protocol protocollo.
      * @param requestId request CAN ID.
@@ -171,89 +198,70 @@ public class DiagnosticTargetDefinition {
                 requestId,
                 responseId,
                 addressingMode,
-                11
+                11,
+                0
         );
     }
 
-    /**
-     * Restituisce il protocollo.
-     *
-     * @return protocollo.
-     */
     @NonNull
     public String getProtocol() {
 
         return protocol;
     }
 
-    /**
-     * Restituisce il request ID.
-     *
-     * @return request ID.
-     */
     @NonNull
     public String getRequestId() {
 
         return requestId;
     }
 
-    /**
-     * Restituisce il response ID.
-     *
-     * @return response ID.
-     */
     @NonNull
     public String getResponseId() {
 
         return responseId;
     }
 
-    /**
-     * Restituisce la modalità addressing.
-     *
-     * @return addressing mode.
-     */
     @NonNull
     public String getAddressingMode() {
 
         return addressingMode;
     }
 
-    /**
-     * Restituisce il numero di bit dell'identificatore CAN.
-     *
-     * @return 11 oppure 29.
-     */
     public int getCanIdBits() {
 
         return canIdBits;
     }
 
     /**
-     * Indica se l'ID CAN è standard 11 bit.
+     * Restituisce il bitrate CAN.
      *
-     * @return true se 11 bit.
+     * @return bitrate in kbit/s, oppure 0 se non specificato.
      */
+    public int getCanBitrateKbps() {
+
+        return canBitrateKbps;
+    }
+
+    /**
+     * Indica se il bitrate è stato esplicitamente specificato.
+     *
+     * @return true se presente.
+     */
+    public boolean hasCanBitrate() {
+
+        return canBitrateKbps > 0;
+    }
+
     public boolean isStandardCanId() {
 
         return canIdBits == 11;
     }
 
-    /**
-     * Indica se l'ID CAN è extended 29 bit.
-     *
-     * @return true se 29 bit.
-     */
     public boolean isExtendedCanId() {
 
         return canIdBits == 29;
     }
 
-    /**
-     * Indica se il protocollo utilizza CAN.
-     *
-     * @return true se CAN.
-     */
     public boolean isCan() {
 
         return "CAN".equals(protocol)
@@ -263,11 +271,6 @@ public class DiagnosticTargetDefinition {
                 "UDS".equals(protocol);
     }
 
-    /**
-     * Indica se il target è fisicamente indirizzato.
-     *
-     * @return true se physical.
-     */
     public boolean isPhysical() {
 
         return "PHYSICAL".equals(
@@ -275,11 +278,6 @@ public class DiagnosticTargetDefinition {
         );
     }
 
-    /**
-     * Indica se il target è funzionalmente indirizzato.
-     *
-     * @return true se functional.
-     */
     public boolean isFunctional() {
 
         return "FUNCTIONAL".equals(
@@ -290,22 +288,8 @@ public class DiagnosticTargetDefinition {
     /**
      * Normalizza e valida un CAN ID.
      *
-     * 11 bit:
-     *
-     *     7E0
-     *     07E0
-     *     0x7E0
-     *
-     * 29 bit:
-     *
-     *     18DAF110
-     *     0x18DAF110
-     *
-     * Il valore restituito mantiene gli zeri eventualmente
-     * presenti nel JSON, ad eccezione del prefisso 0x.
-     *
      * @param value valore.
-     * @param name nome campo.
+     * @param name nome.
      *
      * @return ID normalizzato.
      */
@@ -383,8 +367,7 @@ public class DiagnosticTargetDefinition {
                         ? 0x7FF
                         : 0x1FFFFFFF;
 
-        if (numericValue < 0 ||
-                numericValue > maxValue) {
+        if (numericValue > maxValue) {
 
             throw new IllegalArgumentException(
                     name
@@ -398,11 +381,6 @@ public class DiagnosticTargetDefinition {
         return normalized;
     }
 
-    /**
-     * Rappresentazione testuale.
-     *
-     * @return descrizione.
-     */
     @NonNull
     @Override
     public String toString() {
@@ -422,6 +400,8 @@ public class DiagnosticTargetDefinition {
                 '\'' +
                 ", canIdBits=" +
                 canIdBits +
+                ", canBitrateKbps=" +
+                canBitrateKbps +
                 '}';
     }
 }

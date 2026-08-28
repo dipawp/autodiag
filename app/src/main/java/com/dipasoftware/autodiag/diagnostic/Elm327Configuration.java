@@ -17,11 +17,7 @@ import androidx.annotation.NonNull;
  * per comunicare con uno specifico target diagnostico.
  *
  * La classe NON invia comandi.
- *
  * La classe NON comunica con la Connection.
- *
- * La classe rappresenta esclusivamente i parametri necessari
- * alla configurazione del transport adapter.
  *
  * ****************************************************************************
  */
@@ -46,23 +42,25 @@ public class Elm327Configuration {
     private final String responseId;
 
     /**
-     * Modalità di addressing.
+     * Modalità addressing.
      */
     @NonNull
     private final String addressingMode;
 
     /**
      * Dimensione CAN ID.
-     *
-     * Valori supportati:
-     *
-     * 11
-     * 29
      */
     private final int canIdBits;
 
     /**
-     * Costruttore.
+     * Bitrate CAN in kbit/s.
+     *
+     * 0 = non specificato.
+     */
+    private final int canBitrateKbps;
+
+    /**
+     * Costruttore da target.
      *
      * @param target target diagnostico.
      */
@@ -83,6 +81,9 @@ public class Elm327Configuration {
 
         this.canIdBits =
                 target.getCanIdBits();
+
+        this.canBitrateKbps =
+                target.getCanBitrateKbps();
     }
 
     /**
@@ -91,8 +92,32 @@ public class Elm327Configuration {
      * @param protocol protocollo.
      * @param requestId request CAN ID.
      * @param responseId response CAN ID.
-     * @param addressingMode addressing mode.
+     * @param addressingMode addressing.
      * @param canIdBits dimensione CAN ID.
+     * @param canBitrateKbps bitrate.
+     */
+    public Elm327Configuration(
+            @NonNull String protocol,
+            @NonNull String requestId,
+            @NonNull String responseId,
+            @NonNull String addressingMode,
+            int canIdBits,
+            int canBitrateKbps) {
+
+        this(
+                new DiagnosticTargetDefinition(
+                        protocol,
+                        requestId,
+                        responseId,
+                        addressingMode,
+                        canIdBits,
+                        canBitrateKbps
+                )
+        );
+    }
+
+    /**
+     * Costruttore compatibile.
      */
     public Elm327Configuration(
             @NonNull String protocol,
@@ -102,95 +127,64 @@ public class Elm327Configuration {
             int canIdBits) {
 
         this(
-                new DiagnosticTargetDefinition(
-                        protocol,
-                        requestId,
-                        responseId,
-                        addressingMode,
-                        canIdBits
-                )
+                protocol,
+                requestId,
+                responseId,
+                addressingMode,
+                canIdBits,
+                0
         );
     }
 
-    /**
-     * Restituisce il protocollo.
-     *
-     * @return protocollo.
-     */
     @NonNull
     public String getProtocol() {
 
         return protocol;
     }
 
-    /**
-     * Restituisce il request ID.
-     *
-     * @return request ID.
-     */
     @NonNull
     public String getRequestId() {
 
         return requestId;
     }
 
-    /**
-     * Restituisce il response ID.
-     *
-     * @return response ID.
-     */
     @NonNull
     public String getResponseId() {
 
         return responseId;
     }
 
-    /**
-     * Restituisce l'addressing mode.
-     *
-     * @return addressing.
-     */
     @NonNull
     public String getAddressingMode() {
 
         return addressingMode;
     }
 
-    /**
-     * Restituisce la dimensione CAN ID.
-     *
-     * @return 11 oppure 29.
-     */
     public int getCanIdBits() {
 
         return canIdBits;
     }
 
-    /**
-     * Indica se CAN standard.
-     *
-     * @return true se 11 bit.
-     */
+    public int getCanBitrateKbps() {
+
+        return canBitrateKbps;
+    }
+
+    public boolean hasCanBitrate() {
+
+        return canBitrateKbps > 0;
+    }
+
     public boolean isStandardCan() {
 
         return canIdBits == 11;
     }
 
-    /**
-     * Indica se CAN extended.
-     *
-     * @return true se 29 bit.
-     */
     public boolean isExtendedCan() {
 
         return canIdBits == 29;
     }
 
-    /**
-     * Indica se l'addressing è fisico.
-     *
-     * @return true se physical.
-     */
     public boolean isPhysicalAddressing() {
 
         return "PHYSICAL".equals(
@@ -198,11 +192,6 @@ public class Elm327Configuration {
         );
     }
 
-    /**
-     * Indica se l'addressing è funzionale.
-     *
-     * @return true se functional.
-     */
     public boolean isFunctionalAddressing() {
 
         return "FUNCTIONAL".equals(
@@ -211,12 +200,9 @@ public class Elm327Configuration {
     }
 
     /**
-     * Converte la configurazione in un DiagnosticTargetDefinition.
+     * Converte nuovamente in DiagnosticTargetDefinition.
      *
-     * Il metodo permette di mantenere un singolo modello
-     * di riferimento per il target diagnostico.
-     *
-     * @return target diagnostico.
+     * @return target.
      */
     @NonNull
     public DiagnosticTargetDefinition toDiagnosticTarget() {
@@ -226,12 +212,13 @@ public class Elm327Configuration {
                 requestId,
                 responseId,
                 addressingMode,
-                canIdBits
+                canIdBits,
+                canBitrateKbps
         );
     }
 
     /**
-     * Verifica se la configurazione equivale a un target.
+     * Verifica corrispondenza con un target.
      *
      * @param target target.
      *
@@ -257,7 +244,10 @@ public class Elm327Configuration {
                 )
                 &&
                 canIdBits ==
-                        target.getCanIdBits();
+                        target.getCanIdBits()
+                &&
+                canBitrateKbps ==
+                        target.getCanBitrateKbps();
     }
 
     /**
@@ -287,14 +277,12 @@ public class Elm327Configuration {
                 )
                 &&
                 canIdBits ==
-                        other.canIdBits;
+                        other.canIdBits
+                &&
+                canBitrateKbps ==
+                        other.canBitrateKbps;
     }
 
-    /**
-     * Rappresentazione testuale.
-     *
-     * @return configurazione.
-     */
     @NonNull
     @Override
     public String toString() {
@@ -314,6 +302,8 @@ public class Elm327Configuration {
                 '\'' +
                 ", canIdBits=" +
                 canIdBits +
+                ", canBitrateKbps=" +
+                canBitrateKbps +
                 '}';
     }
 }

@@ -246,4 +246,28 @@ public class DiagnosticTargetDefinitionTest {
                 11
         );
     }
+
+
+    @Test
+    public void canBitrateIsStored() {
+
+        DiagnosticTargetDefinition target =
+                new DiagnosticTargetDefinition(
+                        "CAN",
+                        "7E0",
+                        "7E8",
+                        "PHYSICAL",
+                        11,
+                        500
+                );
+
+        assertEquals(
+                500,
+                target.getCanBitrateKbps()
+        );
+
+        assertTrue(
+                target.hasCanBitrate()
+        );
+    }
 }

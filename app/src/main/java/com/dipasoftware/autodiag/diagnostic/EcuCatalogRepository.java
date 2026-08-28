@@ -989,6 +989,12 @@ public class EcuCatalogRepository {
                         11
                 );
 
+        int canBitrateKbps =
+                object.optInt(
+                        "canBitrateKbps",
+                        0
+                );
+
         /*
          * Se il JSON contiene un target ma manca uno degli ID
          * necessari, consideriamo il catalogo non valido.
@@ -1012,7 +1018,8 @@ public class EcuCatalogRepository {
                 requestId,
                 responseId,
                 addressingMode,
-                canIdBits
+                canIdBits,
+                canBitrateKbps
         );
     }
 
