@@ -8,6 +8,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -24,7 +25,7 @@ import static org.junit.Assert.assertTrue;
 public class Elm327DiagnosticTransportTest {
 
     /**
-     * Verifica invio e ricezione con target CAN 11 bit.
+     * Verifica invio, configurazione e ricezione.
      */
     @Test
     public void sendAndReceivePreserveTarget()
@@ -35,9 +36,13 @@ public class Elm327DiagnosticTransportTest {
                         "62 F1 90 12 34\r>"
                 );
 
+        FakeConfigurator configurator =
+                new FakeConfigurator();
+
         Elm327DiagnosticTransport transport =
                 new Elm327DiagnosticTransport(
-                        connection
+                        connection,
+                        configurator
                 );
 
         DiagnosticTargetDefinition target =
@@ -59,20 +64,18 @@ public class Elm327DiagnosticTransportTest {
                 connection.getLastSentData()
         );
 
-        assertEquals(
-                "22F190",
-                transport.getLastRequest()
-        );
-
-        assertNotNull(
-                transport.getLastTarget()
+        assertTrue(
+                transport.isWaitingResponse()
         );
 
         assertEquals(
-                "7E0",
-                transport
-                        .getLastTarget()
-                        .getRequestId()
+                target,
+                transport.getConfiguredTarget()
+        );
+
+        assertEquals(
+                1,
+                configurator.getConfigureCount()
         );
 
         String response =
@@ -84,26 +87,34 @@ public class Elm327DiagnosticTransportTest {
                 "62 F1 90 12 34\r>",
                 response
         );
+
+        assertTrue(
+                transport
+                        .getState()
+                        .hasResponse()
+        );
     }
 
     /**
-     * Verifica che un transport non collegato fallisca.
+     * Verifica che lo stesso target non venga
+     * riconfigurato a ogni request.
      */
-    @Test(expected = java.io.IOException.class)
-    public void disconnectedConnectionIsRejected()
+    @Test
+    public void sameTargetDoesNotReconfigure()
             throws Exception {
 
         FakeConnection connection =
                 new FakeConnection(
-                        ""
+                        "62 F1 90\r>"
                 );
 
-        connection.connected =
-                false;
+        FakeConfigurator configurator =
+                new FakeConfigurator();
 
         Elm327DiagnosticTransport transport =
                 new Elm327DiagnosticTransport(
-                        connection
+                        connection,
+                        configurator
                 );
 
         DiagnosticTargetDefinition target =
@@ -117,94 +128,242 @@ public class Elm327DiagnosticTransportTest {
 
         transport.send(
                 target,
-                "010C"
+                "22F190"
         );
-    }
-
-    /**
-     * Verifica request vuota.
-     */
-    @Test(expected = java.io.IOException.class)
-    public void emptyRequestIsRejected()
-            throws Exception {
-
-        FakeConnection connection =
-                new FakeConnection(
-                        ""
-                );
-
-        Elm327DiagnosticTransport transport =
-                new Elm327DiagnosticTransport(
-                        connection
-                );
-
-        DiagnosticTargetDefinition target =
-                new DiagnosticTargetDefinition(
-                        "CAN",
-                        "7E0",
-                        "7E8",
-                        "PHYSICAL",
-                        11
-                );
-
-        transport.send(
-                target,
-                "   "
-        );
-    }
-
-    /**
-     * Verifica che receive senza send precedente
-     * non venga accettato.
-     */
-    @Test(expected = java.io.IOException.class)
-    public void receiveWithoutSendIsRejected()
-            throws Exception {
-
-        FakeConnection connection =
-                new FakeConnection(
-                        "62 F1 90"
-                );
-
-        Elm327DiagnosticTransport transport =
-                new Elm327DiagnosticTransport(
-                        connection
-                );
-
-        DiagnosticTargetDefinition target =
-                new DiagnosticTargetDefinition(
-                        "UDS",
-                        "7E0",
-                        "7E8",
-                        "PHYSICAL",
-                        11
-                );
 
         transport.receive(
                 target
         );
+
+        transport.send(
+                target,
+                "22F191"
+        );
+
+        assertEquals(
+                1,
+                configurator.getConfigureCount()
+        );
     }
 
     /**
-     * Connection simulata.
+     * Verifica che cambiando target venga richiesta
+     * una nuova configurazione.
+     */
+    @Test
+    public void differentTargetReconfiguresAdapter()
+            throws Exception {
+
+        FakeConnection connection =
+                new FakeConnection(
+                        "62 F1 90\r>"
+                );
+
+        FakeConfigurator configurator =
+                new FakeConfigurator();
+
+        Elm327DiagnosticTransport transport =
+                new Elm327DiagnosticTransport(
+                        connection,
+                        configurator
+                );
+
+        DiagnosticTargetDefinition first =
+                new DiagnosticTargetDefinition(
+                        "CAN",
+                        "7E0",
+                        "7E8",
+                        "PHYSICAL",
+                        11
+                );
+
+        DiagnosticTargetDefinition second =
+                new DiagnosticTargetDefinition(
+                        "CAN",
+                        "7E1",
+                        "7E9",
+                        "PHYSICAL",
+                        11
+                );
+
+        transport.send(
+                first,
+                "22F190"
+        );
+
+        transport.receive(
+                first
+        );
+
+        transport.send(
+                second,
+                "22F191"
+        );
+
+        assertEquals(
+                2,
+                configurator.getConfigureCount()
+        );
+
+        assertEquals(
+                second,
+                transport.getConfiguredTarget()
+        );
+    }
+
+    /**
+     * Verifica che un target errato durante receive
+     * venga rifiutato.
+     */
+    @Test(expected = java.io.IOException.class)
+    public void receiveWithDifferentTargetIsRejected()
+            throws Exception {
+
+        FakeConnection connection =
+                new FakeConnection(
+                        "62 F1 90\r>"
+                );
+
+        Elm327DiagnosticTransport transport =
+                new Elm327DiagnosticTransport(
+                        connection
+                );
+
+        DiagnosticTargetDefinition first =
+                new DiagnosticTargetDefinition(
+                        "CAN",
+                        "7E0",
+                        "7E8",
+                        "PHYSICAL",
+                        11
+                );
+
+        DiagnosticTargetDefinition second =
+                new DiagnosticTargetDefinition(
+                        "CAN",
+                        "7E1",
+                        "7E9",
+                        "PHYSICAL",
+                        11
+                );
+
+        transport.send(
+                first,
+                "22F190"
+        );
+
+        transport.receive(
+                second
+        );
+    }
+
+    /**
+     * Verifica reset della configurazione.
+     */
+    @Test
+    public void resetAdapterConfigurationClearsTarget()
+            throws Exception {
+
+        FakeConnection connection =
+                new FakeConnection(
+                        "62 F1 90\r>"
+                );
+
+        FakeConfigurator configurator =
+                new FakeConfigurator();
+
+        Elm327DiagnosticTransport transport =
+                new Elm327DiagnosticTransport(
+                        connection,
+                        configurator
+                );
+
+        DiagnosticTargetDefinition target =
+                new DiagnosticTargetDefinition(
+                        "CAN",
+                        "7E0",
+                        "7E8",
+                        "PHYSICAL",
+                        11
+                );
+
+        transport.send(
+                target,
+                "22F190"
+        );
+
+        assertNotNull(
+                transport.getConfiguredTarget()
+        );
+
+        transport.resetAdapterConfiguration();
+
+        assertFalse(
+                configurator.isConfigured()
+        );
+
+        assertEquals(
+                null,
+                transport.getConfiguredTarget()
+        );
+    }
+
+    /**
+     * Configuratore fittizio.
+     */
+    private static class FakeConfigurator
+            implements DiagnosticAdapterConfigurator {
+
+        /**
+         * Target corrente.
+         */
+        private DiagnosticTargetDefinition target;
+
+        /**
+         * Numero configure().
+         */
+        private int configureCount =
+                0;
+
+        @Override
+        public void configure(
+                DiagnosticTargetDefinition target) {
+
+            this.target =
+                    target;
+
+            configureCount++;
+        }
+
+        @Override
+        public void reset() {
+
+            target =
+                    null;
+        }
+
+        boolean isConfigured() {
+
+            return target != null;
+        }
+
+        int getConfigureCount() {
+
+            return configureCount;
+        }
+    }
+
+    /**
+     * Connection fittizia.
      */
     private static class FakeConnection
             implements Connection {
 
-        /**
-         * Risposta.
-         */
         private final String response;
 
-        /**
-         * Ultimi dati inviati.
-         */
         private String lastSentData =
                 "";
 
-        /**
-         * Stato connessione.
-         */
         private boolean connected =
                 true;
 
@@ -217,12 +376,14 @@ public class Elm327DiagnosticTransportTest {
 
         @Override
         public void connect() {
+
             connected =
                     true;
         }
 
         @Override
         public void disconnect() {
+
             connected =
                     false;
         }

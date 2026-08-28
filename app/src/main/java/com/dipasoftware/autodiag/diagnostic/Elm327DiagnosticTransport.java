@@ -17,19 +17,25 @@ import java.io.IOException;
  *
  * Descrizione:
  *
- * Adapter tra DiagnosticTransport e l'attuale Connection utilizzata
- * dall'ELM327.
+ * Adapter tra DiagnosticTransport e Connection.
  *
- * Questa versione mantiene volutamente separato il concetto di target
- * dalla configurazione concreta dell'ELM327.
+ * Gestisce:
  *
- * Il target viene validato e memorizzato dal transport, mentre l'attuale
- * Connection continua a occuparsi del canale fisico.
+ * - stato della transazione;
+ * - target diagnostico;
+ * - configurazione dell'adapter;
+ * - invio della request;
+ * - ricezione della response.
  *
- * L'applicazione non usa ancora il target per inviare comandi AT specifici:
- * questa parte verrà introdotta insieme al transport/addressing reale.
+ * Il configuratore dell'ELM327 è separato dal transport.
  *
- * In questo modo non alteriamo il comportamento ELM327 già testato.
+ * ATTENZIONE:
+ *
+ * Questa versione NON invia ancora comandi AT.
+ *
+ * Elm327AdapterConfigurator memorizza solamente il target configurato.
+ *
+ * La ReadOnlyDiagnosticPolicy rimane a monte del transport.
  *
  * ****************************************************************************
  */
@@ -43,40 +49,76 @@ public class Elm327DiagnosticTransport
     private final Connection connection;
 
     /**
-     * Ultimo target utilizzato.
-     */
-    private DiagnosticTargetDefinition lastTarget;
-
-    /**
-     * Ultima request inviata.
+     * Stato della transazione.
      */
     @NonNull
-    private String lastRequest =
-            "";
+    private final DiagnosticTransportState state;
 
     /**
-     * Costruttore.
+     * Configuratore adapter.
+     */
+    @NonNull
+    private final DiagnosticAdapterConfigurator adapterConfigurator;
+
+    /**
+     * Target configurato dall'adapter.
+     */
+    private DiagnosticTargetDefinition configuredTarget;
+
+    /**
+     * Costruttore standard.
+     *
+     * Utilizza il configuratore ELM327 predefinito.
      *
      * @param connection connessione fisica.
      */
     public Elm327DiagnosticTransport(
             @NonNull Connection connection) {
 
-        this.connection =
-                connection;
+        this(
+                connection,
+                new Elm327AdapterConfigurator()
+        );
     }
 
     /**
-     * Invia la richiesta attraverso Connection.
+     * Costruttore configurabile.
      *
-     * Il target viene conservato per il livello transport, ma non
-     * tradotto ancora in comandi AT: l'attuale Connection non espone
-     * un'API per CAN ID.
+     * Utile per test e per future implementazioni.
      *
-     * @param target target.
+     * @param connection connessione fisica.
+     * @param adapterConfigurator configuratore adapter.
+     */
+    public Elm327DiagnosticTransport(
+            @NonNull Connection connection,
+            @NonNull DiagnosticAdapterConfigurator adapterConfigurator) {
+
+        this.connection =
+                connection;
+
+        this.state =
+                new DiagnosticTransportState();
+
+        this.adapterConfigurator =
+                adapterConfigurator;
+
+        this.configuredTarget =
+                null;
+    }
+
+    /**
+     * Invia una request verso il target specificato.
+     *
+     * Se il target è differente da quello attualmente configurato,
+     * viene prima richiesto il cambio di configurazione.
+     *
+     * In questa versione la configurazione è solamente logica:
+     * non vengono inviati comandi AT.
+     *
+     * @param target target diagnostico.
      * @param request request diagnostica.
      *
-     * @throws IOException errore comunicazione.
+     * @throws IOException errore di comunicazione/configurazione.
      */
     @Override
     public void send(
@@ -102,31 +144,84 @@ public class Elm327DiagnosticTransport
         }
 
         /*
-         * Conserviamo il target usato per questa transazione.
+         * ---------------------------------------------------------
+         * CONFIGURAZIONE TARGET
+         * ---------------------------------------------------------
          */
-        lastTarget =
-                target;
 
-        lastRequest =
-                normalizedRequest;
+        if (!isSameTarget(
+                configuredTarget,
+                target
+        )) {
+
+            try {
+
+                adapterConfigurator.configure(
+                        target
+                );
+
+            } catch (
+                    RuntimeException exception) {
+
+                throw new IOException(
+                        "Impossibile configurare "
+                                + "il target diagnostico.",
+                        exception
+                );
+            }
+
+            configuredTarget =
+                    target;
+        }
 
         /*
-         * Manteniamo esattamente il comportamento attuale
-         * della Connection.
+         * ---------------------------------------------------------
+         * NUOVA TRANSAZIONE
+         * ---------------------------------------------------------
          */
-        connection.send(
-                normalizedRequest + "\r"
+
+        state.reset();
+
+        state.begin(
+                target,
+                normalizedRequest
         );
+
+        /*
+         * ---------------------------------------------------------
+         * INVIO
+         * ---------------------------------------------------------
+         *
+         * Il transport non modifica ancora la request
+         * con CAN ID o altri comandi adapter.
+         */
+        try {
+
+            connection.send(
+                    normalizedRequest + "\r"
+            );
+
+        } catch (
+                RuntimeException exception) {
+
+            state.reset();
+
+            throw new IOException(
+                    "Errore durante l'invio "
+                            + "della request diagnostica.",
+                    exception
+            );
+        }
     }
 
     /**
-     * Riceve la risposta dalla Connection.
+     * Riceve la risposta relativa al target corrente.
      *
-     * @param target target.
+     * @param target target atteso.
      *
      * @return risposta raw.
      *
-     * @throws IOException errore comunicazione.
+     * @throws IOException stato non valido oppure errore.
      */
     @Override
     @NonNull
@@ -135,49 +230,206 @@ public class Elm327DiagnosticTransport
             throws IOException {
 
         /*
-         * Verifichiamo che il receive corrisponda alla transazione
-         * iniziata con send().
+         * Nessuna request pendente.
          */
-        if (lastTarget == null) {
+        if (state.isIdle()) {
 
             throw new IOException(
-                    "Nessuna richiesta diagnostica pendente."
+                    "Nessuna request diagnostica pendente."
             );
         }
 
-        String response =
-                connection.receive();
+        /*
+         * La transazione è già completata.
+         */
+        if (!state.isWaitingResponse()) {
+
+            throw new IOException(
+                    "La transazione diagnostica "
+                            + "non è più in attesa di risposta."
+            );
+        }
+
+        /*
+         * Target differente dalla request pendente.
+         */
+        if (!state.matchesTarget(
+                target
+        )) {
+
+            throw new IOException(
+                    "Target diagnostico non corrispondente "
+                            + "alla request pendente."
+            );
+        }
+
+        /*
+         * Il target della transazione deve essere anche
+         * quello attualmente configurato.
+         */
+        if (!isSameTarget(
+                configuredTarget,
+                target
+        )) {
+
+            throw new IOException(
+                    "Il target richiesto non corrisponde "
+                            + "al target configurato."
+            );
+        }
+
+        String response;
+
+        try {
+
+            response =
+                    connection.receive();
+
+        } catch (
+                RuntimeException exception) {
+
+            state.reset();
+
+            throw new IOException(
+                    "Errore durante la ricezione "
+                            + "della risposta diagnostica.",
+                    exception
+            );
+        }
 
         if (response == null) {
 
-            return "";
+            response =
+                    "";
         }
+
+        state.markResponseReceived();
 
         return response;
     }
 
     /**
-     * Restituisce l'ultimo target utilizzato.
+     * Reimposta il configuratore adapter.
      *
-     * Getter utile per test e diagnostica.
+     * Non viene eseguito automaticamente dopo receive(),
+     * perché il target può essere riutilizzato per la request
+     * successiva.
+     *
+     * @throws IOException errore di reset.
+     */
+    public void resetAdapterConfiguration()
+            throws IOException {
+
+        adapterConfigurator.reset();
+
+        configuredTarget =
+                null;
+    }
+
+    /**
+     * Restituisce lo stato della transazione.
+     *
+     * @return stato.
+     */
+    @NonNull
+    public DiagnosticTransportState getState() {
+
+        return state;
+    }
+
+    /**
+     * Restituisce il configuratore adapter.
+     *
+     * @return configuratore.
+     */
+    @NonNull
+    public DiagnosticAdapterConfigurator
+    getAdapterConfigurator() {
+
+        return adapterConfigurator;
+    }
+
+    /**
+     * Restituisce il target attualmente configurato.
+     *
+     * @return target oppure null.
+     */
+    public DiagnosticTargetDefinition getConfiguredTarget() {
+
+        return configuredTarget;
+    }
+
+    /**
+     * Restituisce l'ultimo target della transazione.
      *
      * @return target oppure null.
      */
     public DiagnosticTargetDefinition getLastTarget() {
 
-        return lastTarget;
+        return state.getTarget();
     }
 
     /**
      * Restituisce l'ultima request.
-     *
-     * Getter utile per test.
      *
      * @return request.
      */
     @NonNull
     public String getLastRequest() {
 
-        return lastRequest;
+        return state.getRequest();
+    }
+
+    /**
+     * Indica se è presente una risposta pendente.
+     *
+     * @return true se in attesa.
+     */
+    public boolean isWaitingResponse() {
+
+        return state.isWaitingResponse();
+    }
+
+    /**
+     * Confronta due target.
+     *
+     * @param first primo target.
+     * @param second secondo target.
+     *
+     * @return true se equivalenti.
+     */
+    private boolean isSameTarget(
+            DiagnosticTargetDefinition first,
+            DiagnosticTargetDefinition second) {
+
+        if (first == null ||
+                second == null) {
+
+            return false;
+        }
+
+        return first.getProtocol()
+                .equalsIgnoreCase(
+                        second.getProtocol()
+                )
+                &&
+                first.getRequestId()
+                        .equalsIgnoreCase(
+                                second.getRequestId()
+                        )
+                &&
+                first.getResponseId()
+                        .equalsIgnoreCase(
+                                second.getResponseId()
+                        )
+                &&
+                first.getAddressingMode()
+                        .equalsIgnoreCase(
+                                second.getAddressingMode()
+                        )
+                &&
+                first.getCanIdBits()
+                        ==
+                        second.getCanIdBits();
     }
 }
