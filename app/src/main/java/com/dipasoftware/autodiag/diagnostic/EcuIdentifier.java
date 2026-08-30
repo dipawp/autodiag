@@ -668,4 +668,20 @@ public class EcuIdentifier {
 
         return result.toString();
     }
+
+
+
+    /**
+     * Restituisce l'executor utilizzato dall'identificatore ECU.
+     *
+     * Metodo utilizzato principalmente per test e diagnostica
+     * dell'architettura.
+     *
+     * @return executor condiviso.
+     */
+    @NonNull
+    DiagnosticPidExecutor getExecutor() {
+
+        return executor;
+    }
 }

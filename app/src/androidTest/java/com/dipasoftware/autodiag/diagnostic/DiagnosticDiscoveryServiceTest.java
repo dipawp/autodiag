@@ -13,6 +13,7 @@ import org.junit.runner.RunWith;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -436,5 +437,37 @@ public class DiagnosticDiscoveryServiceTest {
             return
                     "7F 22 31\r>";
         }
+    }
+
+
+    @Test
+    public void vehicleAndEcuIdentifiersShareExecutor() {
+
+        FakeConnection connection =
+                new FakeConnection();
+
+        DiagnosticPidExecutor executor =
+                new DiagnosticPidExecutor(
+                        connection
+                );
+
+        DiagnosticDiscoveryService service =
+                new DiagnosticDiscoveryService(
+                        androidx.test.core.app.ApplicationProvider
+                                .getApplicationContext(),
+                        executor
+                );
+
+        assertSame(
+                executor,
+                service.getExecutor()
+        );
+
+        assertSame(
+                executor,
+                service
+                        .getEcuIdentifier()
+                        .getExecutor()
+        );
     }
 }

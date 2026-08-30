@@ -108,6 +108,17 @@ public class Elm327Manager {
     private final DiagnosticPidExecutor diagnosticPidExecutor;
 
 
+
+    /**
+     * DiagnosticPidExecutor utilizzato dal percorso
+     * catalog-driven.
+     *
+     * Viene creato lazy e condiviso tra i componenti
+     * della discovery.
+     */
+    private DiagnosticPidExecutor catalogDiagnosticPidExecutor;
+
+
     /**************************************************************************
      *
      * COSTRUTTORE PRINCIPALE
@@ -1748,89 +1759,73 @@ public class Elm327Manager {
 
 
     /**
-     * Crea un DiagnosticPidExecutor che utilizza il nuovo
-     * transport catalog-driven.
+     * Restituisce il DiagnosticPidExecutor del percorso
+     * catalog-driven.
      *
-     * Il percorso costruito è:
+     * La stessa istanza viene riutilizzata da tutte le componenti
+     * che appartengono alla stessa sessione diagnostica del manager.
      *
-     * Elm327Manager
-     *      ↓
-     * Elm327ManagerCommandSender
-     *      ↓
-     * Elm327CommandExecutor
-     *      ↓
-     * Elm327ConfigurationExecutor
-     *      ↓
-     * Elm327AdapterConfigurator
-     *      ↓
-     * Elm327DiagnosticTransport
-     *      ↓
-     * DiagnosticPidExecutor
+     * In questo modo:
      *
-     * Il DiagnosticPidExecutor legacy già presente nel manager
-     * non viene modificato.
+     * VehicleIdentifier
+     * EcuIdentifier
      *
-     * @return executor diagnostico catalog-driven.
+     * possono condividere lo stesso:
+     *
+     * DiagnosticTransport
+     * DiagnosticTransportState
+     * target configurato
+     * stato configurazione ELM327
+     *
+     * @return executor catalog-driven condiviso.
      */
     @NonNull
-    public DiagnosticPidExecutor createCatalogDiagnosticPidExecutor() {
+    public synchronized DiagnosticPidExecutor
+    createCatalogDiagnosticPidExecutor() {
 
-        Elm327ManagerCommandSender commandSender =
-                new Elm327ManagerCommandSender(
-                        this
-                );
+        if (catalogDiagnosticPidExecutor == null) {
 
-        Elm327CommandExecutor commandExecutor =
-                new Elm327CommandExecutor(
-                        commandSender
-                );
+            Elm327ManagerCommandSender commandSender =
+                    new Elm327ManagerCommandSender(
+                            this
+                    );
 
-        Elm327ConfigurationExecutor configurationExecutor =
-                new Elm327ConfigurationExecutor(
-                        commandExecutor
-                );
+            Elm327CommandExecutor commandExecutor =
+                    new Elm327CommandExecutor(
+                            commandSender
+                    );
 
-        Elm327AdapterConfigurator adapterConfigurator =
-                new Elm327AdapterConfigurator();
+            Elm327ConfigurationExecutor configurationExecutor =
+                    new Elm327ConfigurationExecutor(
+                            commandExecutor
+                    );
 
-        DiagnosticTransport transport =
-                new Elm327DiagnosticTransport(
-                        connection,
-                        adapterConfigurator,
-                        configurationExecutor
-                );
+            Elm327AdapterConfigurator adapterConfigurator =
+                    new Elm327AdapterConfigurator();
 
-        return new DiagnosticPidExecutor(
-                transport,
-                new ReadOnlyDiagnosticPolicy()
-        );
+            DiagnosticTransport transport =
+                    new Elm327DiagnosticTransport(
+                            connection,
+                            adapterConfigurator,
+                            configurationExecutor
+                    );
+
+            catalogDiagnosticPidExecutor =
+                    new DiagnosticPidExecutor(
+                            transport,
+                            new ReadOnlyDiagnosticPolicy()
+                    );
+        }
+
+        return catalogDiagnosticPidExecutor;
     }
 
 
     /**
-     * Crea un EcuIdentifier utilizzando il percorso diagnostico
-     * catalog-driven.
+     * Crea un EcuIdentifier utilizzando lo stesso
+     * DiagnosticPidExecutor catalog-driven del manager.
      *
-     * Il percorso utilizza:
-     *
-     * EcuIdentifier
-     *      ↓
-     * DiagnosticPidExecutor
-     *      ↓
-     * DiagnosticTransport
-     *      ↓
-     * Elm327DiagnosticTransport
-     *      ↓
-     * Elm327AdapterConfigurator
-     *      ↓
-     * Elm327ConfigurationExecutor
-     *      ↓
-     * Elm327Manager
-     *      ↓
-     * Connection
-     *
-     * Il DiagnosticPidExecutor legacy già presente nel manager
-     * non viene modificato.
+     * Non viene creato un nuovo executor.
      *
      * @return EcuIdentifier catalog-driven.
      */

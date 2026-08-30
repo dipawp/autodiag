@@ -18,7 +18,8 @@ import java.util.List;
  *
  * Descrizione:
  *
- * Coordina la procedura di identificazione automatica.
+ * Coordina la procedura di identificazione automatica del veicolo
+ * e della ECU.
  *
  * Flusso:
  *
@@ -26,12 +27,11 @@ import java.util.List;
  * 2. filtro del catalogo tramite VIN;
  * 3. identificazione ECU sulle candidate;
  * 4. matching degli identificativi ECU;
- * 5. produzione di DiagnosticDiscoveryResult.
+ * 5. produzione del risultato finale.
  *
- * La classe NON implementa la comunicazione direttamente.
- *
- * Tutte le richieste passano da DiagnosticPidExecutor e quindi
- * dalla ReadOnlyDiagnosticPolicy.
+ * VehicleIdentifier ed EcuIdentifier condividono lo stesso
+ * DiagnosticPidExecutor quando viene utilizzato il percorso
+ * catalog-driven.
  *
  * ****************************************************************************
  */
@@ -62,13 +62,22 @@ public class DiagnosticDiscoveryService {
     private final EcuCatalogMatcher ecuCatalogMatcher;
 
     /**
-     * Esecutore diagnostico.
+     * Executor diagnostico condiviso.
      */
     @NonNull
     private final DiagnosticPidExecutor executor;
 
     /**
-     * Costruttore.
+     * Identificatore ECU.
+     */
+    @NonNull
+    private final EcuIdentifier ecuIdentifier;
+
+    /**
+     * Costruttore compatibile.
+     *
+     * Crea VehicleIdentifier ed EcuIdentifier utilizzando
+     * lo stesso DiagnosticPidExecutor.
      *
      * @param context context Android.
      * @param executor executor diagnostico.
@@ -85,6 +94,54 @@ public class DiagnosticDiscoveryService {
                         executor
                 );
 
+        this.ecuIdentifier =
+                new EcuIdentifier(
+                        executor
+                );
+
+        this.ecuCatalogRepository =
+                new EcuCatalogRepository(
+                        context
+                );
+
+        this.vehicleCatalogMatcher =
+                new VehicleCatalogMatcher();
+
+        this.ecuCatalogMatcher =
+                new EcuCatalogMatcher();
+    }
+
+    /**
+     * Costruttore con EcuIdentifier iniettato.
+     *
+     * Mantenuto per compatibilità con il codice già esistente
+     * e per test specifici.
+     *
+     * IMPORTANTE:
+     *
+     * Il chiamante deve fornire un EcuIdentifier costruito
+     * con lo stesso DiagnosticPidExecutor passato come parametro.
+     *
+     * @param context context Android.
+     * @param executor executor diagnostico.
+     * @param ecuIdentifier identificatore ECU.
+     */
+    public DiagnosticDiscoveryService(
+            @NonNull Context context,
+            @NonNull DiagnosticPidExecutor executor,
+            @NonNull EcuIdentifier ecuIdentifier) {
+
+        this.executor =
+                executor;
+
+        this.vehicleIdentifier =
+                new VehicleIdentifier(
+                        executor
+                );
+
+        this.ecuIdentifier =
+                ecuIdentifier;
+
         this.ecuCatalogRepository =
                 new EcuCatalogRepository(
                         context
@@ -100,23 +157,26 @@ public class DiagnosticDiscoveryService {
     /**
      * Esegue la discovery automatica.
      *
-     * La procedura utilizza il VIN come primo filtro.
-     *
-     * Se il VIN non è disponibile oppure non produce candidate,
-     * non viene effettuata una scansione indiscriminata di tutte
-     * le ECU presenti nel catalogo.
-     *
-     * In questo caso viene restituito un risultato parziale e
-     * l'applicazione potrà successivamente proporre la selezione
-     * manuale.
-     *
      * @return risultato discovery.
      */
     @NonNull
     public DiagnosticDiscoveryResult discover() {
 
-        VehicleIdentification vehicleIdentification =
-                vehicleIdentifier.identify();
+        VehicleIdentification vehicleIdentification;
+
+        try {
+
+            vehicleIdentification =
+                    vehicleIdentifier.identify();
+
+        } catch (
+                RuntimeException exception) {
+
+            vehicleIdentification =
+                    new VehicleIdentification(
+                            ""
+                    );
+        }
 
         List<EcuDefinition> catalog;
 
@@ -136,19 +196,23 @@ public class DiagnosticDiscoveryService {
             );
         }
 
-        List<EcuDefinition> vehicleCandidates =
-                vehicleCatalogMatcher.findCandidates(
-                        vehicleIdentification,
-                        catalog
-                );
+        List<EcuDefinition> vehicleCandidates;
 
-        /*
-         * Senza un VIN non facciamo una scansione cieca
-         * di tutte le ECU del catalogo.
-         *
-         * Questo è intenzionale: il numero di possibili target
-         * crescerà enormemente con il catalogo multi-marca.
-         */
+        try {
+
+            vehicleCandidates =
+                    vehicleCatalogMatcher.findCandidates(
+                            vehicleIdentification,
+                            catalog
+                    );
+
+        } catch (
+                RuntimeException exception) {
+
+            vehicleCandidates =
+                    Collections.emptyList();
+        }
+
         if (vehicleCandidates.isEmpty()) {
 
             return new DiagnosticDiscoveryResult(
@@ -160,12 +224,8 @@ public class DiagnosticDiscoveryService {
         }
 
         /*
-         * Se abbiamo una sola ECU candidata possiamo procedere
-         * con la lettura dei relativi identificatori.
-         *
-         * Se ne abbiamo più di una, per ora non interroghiamo
-         * automaticamente tutte le candidate: il target/addressing
-         * reale verrà gestito dal transport layer.
+         * Se rimangono più ECU candidate, non eseguiamo ancora
+         * una scansione indiscriminata.
          */
         if (vehicleCandidates.size() != 1) {
 
@@ -180,27 +240,74 @@ public class DiagnosticDiscoveryService {
         EcuDefinition candidate =
                 vehicleCandidates.get(0);
 
-        EcuIdentifier ecuIdentifier =
-                new EcuIdentifier(
-                        executor
-                );
+        EcuIdentification ecuIdentification;
 
-        EcuIdentification ecuIdentification =
-                ecuIdentifier.identify(
-                        candidate
-                );
+        try {
 
-        EcuMatchResult matchResult =
-                ecuCatalogMatcher.match(
-                        ecuIdentification,
-                        vehicleCandidates
-                );
+            ecuIdentification =
+                    ecuIdentifier.identify(
+                            candidate
+                    );
+
+        } catch (
+                RuntimeException exception) {
+
+            return new DiagnosticDiscoveryResult(
+                    vehicleIdentification,
+                    vehicleCandidates,
+                    null,
+                    null
+            );
+        }
+
+        EcuMatchResult ecuMatchResult;
+
+        try {
+
+            ecuMatchResult =
+                    ecuCatalogMatcher.match(
+                            ecuIdentification,
+                            vehicleCandidates
+                    );
+
+        } catch (
+                RuntimeException exception) {
+
+            ecuMatchResult =
+                    null;
+        }
 
         return new DiagnosticDiscoveryResult(
                 vehicleIdentification,
                 vehicleCandidates,
                 ecuIdentification,
-                matchResult
+                ecuMatchResult
         );
+    }
+
+    /**
+     * Restituisce l'executor condiviso.
+     *
+     * Package-private per test e diagnostica.
+     *
+     * @return executor.
+     */
+    @NonNull
+    DiagnosticPidExecutor getExecutor() {
+
+        return executor;
+    }
+
+    /**
+     * Restituisce l'EcuIdentifier utilizzato.
+     *
+     * Package-private per test e diagnostica.
+     *
+     * @return identifier ECU.
+     */
+    @NonNull
+    EcuIdentifier getEcuIdentifier() {
+
+        return ecuIdentifier;
     }
 }
