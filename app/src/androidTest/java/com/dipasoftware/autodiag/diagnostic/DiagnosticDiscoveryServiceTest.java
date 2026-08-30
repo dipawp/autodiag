@@ -470,4 +470,41 @@ public class DiagnosticDiscoveryServiceTest {
                         .getExecutor()
         );
     }
+
+
+    @Test
+    public void serviceUsesDiscoverySessionExecutor() {
+
+        DiagnosticPidExecutor executor =
+                new DiagnosticPidExecutor(
+                        new FakeConnection()
+                );
+
+        DiagnosticDiscoverySession session =
+                new DiagnosticDiscoverySession(
+                        executor
+                );
+
+        DiagnosticDiscoveryService service =
+                new DiagnosticDiscoveryService(
+                        androidx.test.core.app.ApplicationProvider
+                                .getApplicationContext(),
+                        session
+                );
+
+        assertSame(
+                executor,
+                service.getExecutor()
+        );
+
+        assertSame(
+                session,
+                service.getSession()
+        );
+
+        assertSame(
+                session.getEcuIdentifier(),
+                service.getEcuIdentifier()
+        );
+    }
 }

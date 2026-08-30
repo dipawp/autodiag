@@ -19,19 +19,19 @@ import java.util.List;
  * Descrizione:
  *
  * Coordina la procedura di identificazione automatica del veicolo
- * e della ECU.
+ * e della ECU utilizzando una singola DiagnosticDiscoverySession.
  *
  * Flusso:
  *
- * 1. lettura VIN;
- * 2. filtro del catalogo tramite VIN;
- * 3. identificazione ECU sulle candidate;
- * 4. matching degli identificativi ECU;
- * 5. produzione del risultato finale.
+ * 1. apertura contesto discovery;
+ * 2. lettura VIN;
+ * 3. filtro del catalogo tramite VIN;
+ * 4. identificazione ECU;
+ * 5. matching ECU;
+ * 6. risultato discovery.
  *
  * VehicleIdentifier ed EcuIdentifier condividono lo stesso
- * DiagnosticPidExecutor quando viene utilizzato il percorso
- * catalog-driven.
+ * DiagnosticPidExecutor e quindi lo stesso DiagnosticTransport.
  *
  * ****************************************************************************
  */
@@ -74,10 +74,15 @@ public class DiagnosticDiscoveryService {
     private final EcuIdentifier ecuIdentifier;
 
     /**
+     * Sessione discovery condivisa.
+     */
+    @NonNull
+    private final DiagnosticDiscoverySession session;
+
+    /**
      * Costruttore compatibile.
      *
-     * Crea VehicleIdentifier ed EcuIdentifier utilizzando
-     * lo stesso DiagnosticPidExecutor.
+     * Crea una nuova sessione utilizzando l'executor fornito.
      *
      * @param context context Android.
      * @param executor executor diagnostico.
@@ -86,18 +91,37 @@ public class DiagnosticDiscoveryService {
             @NonNull Context context,
             @NonNull DiagnosticPidExecutor executor) {
 
+        this(
+                context,
+                new DiagnosticDiscoverySession(
+                        executor
+                )
+        );
+    }
+
+    /**
+     * Costruttore basato direttamente sulla sessione.
+     *
+     * Questo è il percorso principale della nuova architettura.
+     *
+     * @param context context Android.
+     * @param session sessione discovery.
+     */
+    public DiagnosticDiscoveryService(
+            @NonNull Context context,
+            @NonNull DiagnosticDiscoverySession session) {
+
+        this.session =
+                session;
+
         this.executor =
-                executor;
+                session.getExecutor();
 
         this.vehicleIdentifier =
-                new VehicleIdentifier(
-                        executor
-                );
+                session.getVehicleIdentifier();
 
         this.ecuIdentifier =
-                new EcuIdentifier(
-                        executor
-                );
+                session.getEcuIdentifier();
 
         this.ecuCatalogRepository =
                 new EcuCatalogRepository(
@@ -112,15 +136,12 @@ public class DiagnosticDiscoveryService {
     }
 
     /**
-     * Costruttore con EcuIdentifier iniettato.
-     *
-     * Mantenuto per compatibilità con il codice già esistente
-     * e per test specifici.
+     * Costruttore compatibile con il percorso precedente che
+     * iniettava direttamente EcuIdentifier.
      *
      * IMPORTANTE:
      *
-     * Il chiamante deve fornire un EcuIdentifier costruito
-     * con lo stesso DiagnosticPidExecutor passato come parametro.
+     * Viene mantenuto per non rompere codice e test esistenti.
      *
      * @param context context Android.
      * @param executor executor diagnostico.
@@ -142,6 +163,11 @@ public class DiagnosticDiscoveryService {
         this.ecuIdentifier =
                 ecuIdentifier;
 
+        this.session =
+                new DiagnosticDiscoverySession(
+                        executor
+                );
+
         this.ecuCatalogRepository =
                 new EcuCatalogRepository(
                         context
@@ -155,12 +181,31 @@ public class DiagnosticDiscoveryService {
     }
 
     /**
-     * Esegue la discovery automatica.
+     * Esegue la discovery completa.
      *
      * @return risultato discovery.
      */
     @NonNull
     public DiagnosticDiscoveryResult discover() {
+
+        /*
+         * ---------------------------------------------------------
+         * SESSIONE
+         * ---------------------------------------------------------
+         */
+
+        if (session.isClosed()) {
+
+            throw new IllegalStateException(
+                    "Sessione discovery già chiusa."
+            );
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * IDENTIFICAZIONE VEICOLO
+         * ---------------------------------------------------------
+         */
 
         VehicleIdentification vehicleIdentification;
 
@@ -177,6 +222,12 @@ public class DiagnosticDiscoveryService {
                             ""
                     );
         }
+
+        /*
+         * ---------------------------------------------------------
+         * CATALOGO
+         * ---------------------------------------------------------
+         */
 
         List<EcuDefinition> catalog;
 
@@ -196,6 +247,12 @@ public class DiagnosticDiscoveryService {
             );
         }
 
+        /*
+         * ---------------------------------------------------------
+         * MATCHING VEICOLO
+         * ---------------------------------------------------------
+         */
+
         List<EcuDefinition> vehicleCandidates;
 
         try {
@@ -213,6 +270,9 @@ public class DiagnosticDiscoveryService {
                     Collections.emptyList();
         }
 
+        /*
+         * Nessuna ECU compatibile con il VIN.
+         */
         if (vehicleCandidates.isEmpty()) {
 
             return new DiagnosticDiscoveryResult(
@@ -224,8 +284,9 @@ public class DiagnosticDiscoveryService {
         }
 
         /*
-         * Se rimangono più ECU candidate, non eseguiamo ancora
-         * una scansione indiscriminata.
+         * Più candidate:
+         *
+         * non eseguiamo ancora una scansione indiscriminata.
          */
         if (vehicleCandidates.size() != 1) {
 
@@ -237,6 +298,12 @@ public class DiagnosticDiscoveryService {
             );
         }
 
+        /*
+         * ---------------------------------------------------------
+         * IDENTIFICAZIONE ECU
+         * ---------------------------------------------------------
+         */
+
         EcuDefinition candidate =
                 vehicleCandidates.get(0);
 
@@ -244,6 +311,12 @@ public class DiagnosticDiscoveryService {
 
         try {
 
+            /*
+             * L'EcuIdentifier appartiene alla stessa sessione
+             * utilizzata per il VIN.
+             *
+             * Questo garantisce lo stesso executor/transport.
+             */
             ecuIdentification =
                     ecuIdentifier.identify(
                             candidate
@@ -259,6 +332,12 @@ public class DiagnosticDiscoveryService {
                     null
             );
         }
+
+        /*
+         * ---------------------------------------------------------
+         * MATCHING ECU
+         * ---------------------------------------------------------
+         */
 
         EcuMatchResult ecuMatchResult;
 
@@ -288,8 +367,6 @@ public class DiagnosticDiscoveryService {
     /**
      * Restituisce l'executor condiviso.
      *
-     * Package-private per test e diagnostica.
-     *
      * @return executor.
      */
     @NonNull
@@ -299,9 +376,7 @@ public class DiagnosticDiscoveryService {
     }
 
     /**
-     * Restituisce l'EcuIdentifier utilizzato.
-     *
-     * Package-private per test e diagnostica.
+     * Restituisce l'EcuIdentifier utilizzato dalla discovery.
      *
      * @return identifier ECU.
      */
@@ -309,5 +384,46 @@ public class DiagnosticDiscoveryService {
     EcuIdentifier getEcuIdentifier() {
 
         return ecuIdentifier;
+    }
+
+    /**
+     * Restituisce la sessione discovery.
+     *
+     * @return sessione.
+     */
+    @NonNull
+    DiagnosticDiscoverySession getSession() {
+
+        return session;
+    }
+
+    /**
+     * Chiude la sessione discovery.
+     *
+     * Nessun comando diagnostico viene inviato.
+     */
+    public void close() {
+
+        session.close();
+    }
+
+    /**
+     * Indica se la discovery è ancora aperta.
+     *
+     * @return true se aperta.
+     */
+    public boolean isOpen() {
+
+        return session.isOpen();
+    }
+
+    /**
+     * Indica se la discovery è stata chiusa.
+     *
+     * @return true se chiusa.
+     */
+    public boolean isClosed() {
+
+        return session.isClosed();
     }
 }
