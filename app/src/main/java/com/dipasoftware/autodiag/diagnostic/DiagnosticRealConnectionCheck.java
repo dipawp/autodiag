@@ -1,5 +1,7 @@
 package com.dipasoftware.autodiag.diagnostic;
 
+import android.util.Log;
+
 import androidx.annotation.NonNull;
 
 /**
@@ -26,11 +28,15 @@ import androidx.annotation.NonNull;
  *
  * NON modifica i filtri CAN.
  *
- * NON esegue operazioni di scrittura sulla ECU.
- *
  * ****************************************************************************
  */
 public class DiagnosticRealConnectionCheck {
+
+    /**
+     * Tag utilizzato per Logcat.
+     */
+    private static final String TAG =
+            "DiagnosticRealConnectionCheck";
 
     /**
      * Sender verso l'ELM327.
@@ -72,12 +78,38 @@ public class DiagnosticRealConnectionCheck {
     public Result check()
             throws java.io.IOException {
 
+        Log.d(
+                TAG,
+                "=================================================="
+        );
+
+        Log.d(
+                TAG,
+                "INIZIO CHECK ELM327"
+        );
+
+        Log.d(
+                TAG,
+                "Invio comando adapter: ATI"
+        );
+
         String identification =
                 commandExecutor.execute(
                         "ATI"
                 );
 
+        Log.d(
+                TAG,
+                "Risposta ATI: "
+                        + identification
+        );
+
         if (identification.trim().isEmpty()) {
+
+            Log.e(
+                    TAG,
+                    "ATI ha restituito una risposta vuota."
+            );
 
             throw new java.io.IOException(
                     "L'ELM327 non ha restituito "
@@ -85,12 +117,28 @@ public class DiagnosticRealConnectionCheck {
             );
         }
 
+        Log.d(
+                TAG,
+                "Invio comando adapter: ATDP"
+        );
+
         String protocol =
                 commandExecutor.execute(
                         "ATDP"
                 );
 
+        Log.d(
+                TAG,
+                "Risposta ATDP: "
+                        + protocol
+        );
+
         if (protocol.trim().isEmpty()) {
+
+            Log.e(
+                    TAG,
+                    "ATDP ha restituito una risposta vuota."
+            );
 
             throw new java.io.IOException(
                     "L'ELM327 non ha restituito "
@@ -98,10 +146,52 @@ public class DiagnosticRealConnectionCheck {
             );
         }
 
-        return new Result(
-                identification,
-                protocol
+        Result result =
+                new Result(
+                        identification,
+                        protocol
+                );
+
+        Log.d(
+                TAG,
+                "ELM327 check completato."
         );
+
+        Log.d(
+                TAG,
+                "ELM327 riconosciuto: "
+                        + result.looksLikeElm327()
+        );
+
+        Log.d(
+                TAG,
+                "Protocollo CAN: "
+                        + result.reportsCanProtocol()
+        );
+
+        Log.d(
+                TAG,
+                "Protocollo ISO 15765: "
+                        + result.reportsIso15765()
+        );
+
+        Log.d(
+                TAG,
+                "CAN READY: "
+                        + result.isCanReady()
+        );
+
+        Log.d(
+                TAG,
+                "FINE CHECK ELM327"
+        );
+
+        Log.d(
+                TAG,
+                "=================================================="
+        );
+
+        return result;
     }
 
     /**
@@ -175,10 +265,9 @@ public class DiagnosticRealConnectionCheck {
         }
 
         /**
-         * Verifica che il risultato contenga entrambe
-         * le risposte.
+         * Verifica che entrambe le risposte siano presenti.
          *
-         * @return true se valido.
+         * @return true se valide.
          */
         public boolean isValid() {
 
@@ -188,12 +277,11 @@ public class DiagnosticRealConnectionCheck {
         }
 
         /**
-         * Verifica se la risposta ATI sembra quella
-         * tipica di un ELM327.
+         * Verifica se ATI contiene ELM327.
          *
-         * Non è una verifica di autenticità del chip.
+         * Non certifica che l'adapter sia originale.
          *
-         * @return true se il testo contiene ELM327.
+         * @return true se sembra ELM327.
          */
         public boolean looksLikeElm327() {
 
@@ -203,12 +291,9 @@ public class DiagnosticRealConnectionCheck {
         }
 
         /**
-         * Verifica se il protocollo descritto è CAN.
+         * Verifica se ATDP indica CAN.
          *
-         * Il controllo è volutamente testuale perché
-         * ATDP restituisce una descrizione.
-         *
-         * @return true se contiene CAN.
+         * @return true se CAN.
          */
         public boolean reportsCanProtocol() {
 
@@ -218,29 +303,24 @@ public class DiagnosticRealConnectionCheck {
         }
 
         /**
-         * Verifica se il protocollo descritto è ISO 15765.
+         * Verifica se ATDP indica ISO 15765.
          *
-         * @return true se presente.
+         * @return true se ISO 15765.
          */
         public boolean reportsIso15765() {
 
-            String normalized =
-                    protocolResponse
-                            .toUpperCase();
-
-            return normalized.contains(
-                    "15765"
-            );
+            return protocolResponse
+                    .toUpperCase()
+                    .contains("15765");
         }
 
         /**
-         * Indica se l'adapter sembra pronto per il nostro
+         * Indica se l'adapter sembra pronto per il
          * successivo percorso CAN.
          *
-         * Non effettua alcuna configurazione.
+         * Non esegue configurazioni.
          *
-         * @return true se identificazione e protocollo
-         *         sono compatibili con CAN ISO 15765.
+         * @return true se compatibile.
          */
         public boolean isCanReady() {
 

@@ -1879,4 +1879,47 @@ public class Elm327Manager {
         return createRealConnectionCheck()
                 .check();
     }
+
+
+    /**
+     * Crea un controllo veicolo utilizzando il percorso
+     * diagnostico read-only esistente.
+     *
+     * @return controllo veicolo.
+     *//*
+    @NonNull
+    public DiagnosticRealVehicleCheck
+    createRealVehicleCheck() {
+
+        return new DiagnosticRealVehicleCheck(
+                request -> {
+
+                    DiagnosticPidExecutor executor =
+                            createCatalogDiagnosticPidExecutor();
+
+                    *//*
+                     * Per questa prima prova il VIN OBD-II
+                     * viene inviato tramite il transport
+                     * catalog-driven.
+                     *
+                     * Il risultato raw viene restituito
+                     * direttamente.
+                     *//*
+                    DiagnosticTargetDefinition target =
+                            new DiagnosticTargetDefinition(
+                                    "CAN",
+                                    "7DF",
+                                    "7E8",
+                                    "FUNCTIONAL",
+                                    11,
+                                    500
+                            );
+
+                    return executor.executeRaw(
+                            target,
+                            request
+                    );
+                }
+        );
+    }*/
 }

@@ -589,4 +589,74 @@ public class DiagnosticPidExecutorTest {
                 connection.getSendCount() == 0
         );
     }
+
+
+    @Test
+    public void executeRawAllowsObdVinRequest()
+            throws Exception {
+
+        FakeConnection connection =
+                new FakeConnection(
+                        "49 02 01 54 45 53 54 56 49 4E 31 32 33 34 35 36 37 38 39 30"
+                );
+
+        DiagnosticPidExecutor executor =
+                new DiagnosticPidExecutor(
+                        connection
+                );
+
+        DiagnosticTargetDefinition target =
+                new DiagnosticTargetDefinition(
+                        "CAN",
+                        "7DF",
+                        "7E8",
+                        "FUNCTIONAL",
+                        11,
+                        500
+                );
+
+        DiagnosticPidExecutor.DiagnosticPidExecution result =
+                executor.executeRaw(
+                        target,
+                        "0902"
+                );
+
+        assertEquals(
+                "0902",
+                result.getRequest()
+        );
+
+        assertEquals(
+                "49 02 01 54 45 53 54 56 49 4E 31 32 33 34 35 36 37 38 39 30",
+                result.getRawResponse()
+        );
+    }
+
+
+    @Test(expected = java.io.IOException.class)
+    public void executeRawRejectsWriteService()
+            throws Exception {
+
+        DiagnosticPidExecutor executor =
+                new DiagnosticPidExecutor(
+                        new FakeConnection(
+                                "71 01"
+                        )
+                );
+
+        DiagnosticTargetDefinition target =
+                new DiagnosticTargetDefinition(
+                        "CAN",
+                        "7E0",
+                        "7E8",
+                        "PHYSICAL",
+                        11,
+                        500
+                );
+
+        executor.executeRaw(
+                target,
+                "3101"
+        );
+    }
 }

@@ -17,7 +17,7 @@ import java.io.IOException;
  *
  * Descrizione:
  *
- * Esegue una singola richiesta diagnostica.
+ * Esegue singole richieste diagnostiche.
  *
  * Responsabilità:
  *
@@ -25,13 +25,13 @@ import java.io.IOException;
  * - verificare la policy di sicurezza;
  * - inviare la request tramite DiagnosticTransport;
  * - ricevere la risposta raw;
- * - delegare il parsing al DiagnosticResponseParser.
+ * - delegare il parsing al DiagnosticResponseParser;
+ * - supportare richieste raw read-only quando non esiste una
+ *   PidDefinition completa.
  *
  * La Connection rimane il livello fisico di comunicazione.
  *
- * DiagnosticTransport rappresenta invece il livello di trasporto
- * diagnostico e permette in futuro di gestire il target ECU senza
- * modificare tutta l'architettura.
+ * DiagnosticTransport rappresenta il livello di trasporto diagnostico.
  *
  * ****************************************************************************
  */
@@ -57,19 +57,12 @@ public class DiagnosticPidExecutor {
 
     /**
      * Policy di sicurezza.
-     *
-     * Nella V1 deve essere ReadOnlyDiagnosticPolicy.
      */
     @NonNull
     private final DiagnosticOperationPolicy operationPolicy;
 
     /**
      * Costruttore compatibile con il codice esistente.
-     *
-     * Utilizza:
-     *
-     * - Elm327DiagnosticTransport;
-     * - ReadOnlyDiagnosticPolicy.
      *
      * @param connection connessione fisica.
      */
@@ -85,8 +78,8 @@ public class DiagnosticPidExecutor {
     }
 
     /**
-     * Costruttore compatibile con il codice esistente
-     * che permette di specificare la policy.
+     * Costruttore compatibile che permette di specificare
+     * la policy.
      *
      * @param connection connessione fisica.
      * @param operationPolicy policy diagnostica.
@@ -105,9 +98,6 @@ public class DiagnosticPidExecutor {
 
     /**
      * Costruttore basato direttamente sul transport.
-     *
-     * Utile per test e per future implementazioni del
-     * livello di comunicazione diagnostica.
      *
      * @param transport transport diagnostico.
      * @param operationPolicy policy diagnostica.
@@ -147,20 +137,9 @@ public class DiagnosticPidExecutor {
      * Esegue una richiesta diagnostica utilizzando il target
      * di compatibilità predefinito.
      *
-     * Questo metodo mantiene la compatibilità con tutto il codice
-     * esistente che utilizza:
+     * Mantiene la compatibilità con il vecchio percorso:
      *
-     *     execute(definition)
-     *
-     * IMPORTANTE:
-     *
-     * PidDefinition non contiene il protocollo o il target ECU.
-     * Per questo motivo questa API utilizza un target di compatibilità
-     * fisso.
-     *
-     * Il percorso corretto per il nuovo catalogo ECU è:
-     *
-     *     execute(definition, target)
+     * execute(definition)
      *
      * @param definition definizione PID/DID.
      *
@@ -186,18 +165,12 @@ public class DiagnosticPidExecutor {
      * Esegue una richiesta diagnostica utilizzando esplicitamente
      * il target ECU.
      *
-     * Questo è il nuovo percorso catalog-driven.
-     *
-     * Il target viene normalmente ottenuto da:
-     *
-     *     EcuDefinition.getTarget()
-     *
-     * La policy viene applicata prima dell'invio.
+     * La policy viene sempre verificata prima del transport.
      *
      * @param definition definizione PID/DID.
      * @param target target diagnostico.
      *
-     * @return risultato completo dell'esecuzione.
+     * @return risultato completo.
      *
      * @throws IOException errore di comunicazione.
      */
@@ -220,13 +193,10 @@ public class DiagnosticPidExecutor {
 
         /*
          * ---------------------------------------------------------
-         * POLICY DI SICUREZZA
+         * POLICY
          * ---------------------------------------------------------
          *
-         * La policy viene valutata PRIMA del transport.
-         *
-         * Una richiesta non autorizzata non deve mai arrivare
-         * alla Connection.
+         * La validazione deve avvenire PRIMA del transport.
          */
         operationPolicy.validate(
                 definition,
@@ -285,10 +255,10 @@ public class DiagnosticPidExecutor {
                     IllegalArgumentException exception) {
 
                 /*
-                 * La risposta raw viene comunque conservata.
+                 * La risposta raw resta disponibile.
                  *
-                 * La classificazione definitiva viene lasciata
-                 * al chiamante.
+                 * Il chiamante decide come interpretare
+                 * una risposta che il parser generico non riconosce.
                  */
             }
         }
@@ -301,19 +271,289 @@ public class DiagnosticPidExecutor {
     }
 
     /**
-     * Crea un target di compatibilità per il percorso
-     * legacy execute(PidDefinition).
+     * Esegue una richiesta diagnostica raw utilizzando
+     * il target di compatibilità predefinito.
+     *
+     * Il metodo è destinato a richieste read-only per le quali
+     * non esiste una PidDefinition completa.
+     *
+     * @param request request HEX.
+     *
+     * @return risultato completo.
+     *
+     * @throws IOException errore o richiesta non consentita.
+     */
+    @NonNull
+    public DiagnosticPidExecution executeRaw(
+            @NonNull String request)
+            throws IOException {
+
+        return executeRaw(
+                createDefaultTarget(),
+                request
+        );
+    }
+
+    /**
+     * Esegue una richiesta diagnostica raw utilizzando
+     * un target specifico.
+     *
+     * Questa API è necessaria, ad esempio, per:
+     *
+     * 0902
+     *
+     * quando vogliamo conservare la risposta raw e delegare
+     * successivamente il parsing al chiamante.
+     *
+     * La richiesta viene comunque sottoposta alla stessa
+     * whitelist read-only utilizzata dall'executor normale.
+     *
+     * @param target target diagnostico.
+     * @param request request HEX.
+     *
+     * @return risultato completo.
+     *
+     * @throws IOException errore o richiesta non consentita.
+     */
+    @NonNull
+    public DiagnosticPidExecution executeRaw(
+            @NonNull DiagnosticTargetDefinition target,
+            @NonNull String request)
+            throws IOException {
+
+        /*
+         * ---------------------------------------------------------
+         * NORMALIZZAZIONE
+         * ---------------------------------------------------------
+         */
+
+        String normalizedRequest =
+                normalizeRawRequest(
+                        request
+                );
+
+        if (normalizedRequest.isEmpty()) {
+
+            throw new IOException(
+                    "Richiesta diagnostica raw vuota."
+            );
+        }
+
+        if (normalizedRequest.length() < 2) {
+
+            throw new IOException(
+                    "Richiesta diagnostica raw non valida: "
+                            + request
+            );
+        }
+
+        /*
+         * Una request HEX deve avere un numero pari
+         * di caratteri.
+         */
+        if ((normalizedRequest.length() & 1) != 0) {
+
+            throw new IOException(
+                    "Richiesta diagnostica raw con "
+                            + "numero dispari di caratteri HEX: "
+                            + normalizedRequest
+            );
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * POLICY
+         * ---------------------------------------------------------
+         *
+         * La policy esistente richiede una PidDefinition.
+         *
+         * Costruiamo quindi una definizione minimale che rappresenta
+         * esclusivamente il contesto della request.
+         *
+         * La request stessa viene passata invariata alla policy.
+         *
+         * Non utilizziamo questa definizione per costruire la request.
+         */
+        PidDefinition policyDefinition =
+                createRawPolicyDefinition(
+                        normalizedRequest
+                );
+
+        operationPolicy.validate(
+                policyDefinition,
+                normalizedRequest
+        );
+
+        /*
+         * ---------------------------------------------------------
+         * INVIO
+         * ---------------------------------------------------------
+         */
+
+        transport.send(
+                target,
+                normalizedRequest
+        );
+
+        /*
+         * ---------------------------------------------------------
+         * RICEZIONE
+         * ---------------------------------------------------------
+         */
+
+        String response =
+                transport.receive(
+                        target
+                );
+
+        if (response == null) {
+
+            response =
+                    "";
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * NESSUN PARSING AUTOMATICO
+         * ---------------------------------------------------------
+         *
+         * Una request raw può appartenere a un formato
+         * specifico non rappresentato dalla PidDefinition.
+         *
+         * Per questo restituiamo la response raw senza
+         * passare dal parser generico.
+         */
+
+        return new DiagnosticPidExecution(
+                normalizedRequest,
+                response,
+                null
+        );
+    }
+
+    /**
+     * Normalizza una richiesta HEX raw.
+     *
+     * @param request request.
+     *
+     * @return request normalizzata.
+     */
+    @NonNull
+    private String normalizeRawRequest(
+            @NonNull String request) {
+
+        String normalized =
+                request
+                        .replace(
+                                " ",
+                                ""
+                        )
+                        .replace(
+                                "\r",
+                                ""
+                        )
+                        .replace(
+                                "\n",
+                                ""
+                        )
+                        .replace(
+                                "\t",
+                                ""
+                        )
+                        .toUpperCase();
+
+        /*
+         * Verifichiamo che ogni carattere sia HEX.
+         */
+        for (
+                int index = 0;
+                index < normalized.length();
+                index++
+        ) {
+
+            char character =
+                    normalized.charAt(
+                            index
+                    );
+
+            boolean valid =
+                    (character >= '0'
+                            && character <= '9')
+                            ||
+                            (character >= 'A'
+                                    && character <= 'F');
+
+            if (!valid) {
+
+                throw new IllegalArgumentException(
+                        "Carattere non HEX nella "
+                                + "richiesta raw: "
+                                + character
+                );
+            }
+        }
+
+        return normalized;
+    }
+
+    /**
+     * Crea una PidDefinition minimale esclusivamente
+     * per permettere alla DiagnosticOperationPolicy
+     * esistente di valutare una request raw.
+     *
+     * La request reale NON viene costruita da questo oggetto:
+     * viene passata direttamente al transport.
+     *
+     * @param request request normalizzata.
+     *
+     * @return definizione di contesto.
+     */
+    @NonNull
+    private PidDefinition createRawPolicyDefinition(
+            @NonNull String request) {
+
+        /*
+         * Usiamo il costruttore completo di PidDefinition
+         * con valori neutri per i campi che non riguardano
+         * la validazione del servizio.
+         *
+         * La policy esistente utilizza il contenuto della request
+         * per determinare il servizio consentito.
+         */
+        return new PidDefinition(
+                "RAW",
+                "raw",
+                "raw",
+                "",
+                "RAW",
+                "",
+                0,
+                request.substring(
+                        0,
+                        2
+                ),
+                "RAW",
+                "RAW",
+                false,
+                "BIG_ENDIAN",
+                0,
+                0,
+                0,
+                request,
+                "",
+                0
+        );
+    }
+
+    /**
+     * Crea il target di compatibilità per il percorso legacy.
      *
      * IMPORTANTE:
      *
-     * Questo NON identifica un'ECU reale.
+     * Questo target NON identifica un'ECU reale.
      *
-     * Serve esclusivamente per non rompere i chiamanti
-     * esistenti che non possiedono un EcuDefinition.
-     *
-     * Una ECU reale dovrà utilizzare:
-     *
-     *     execute(definition, ecuDefinition.getTarget())
+     * Serve esclusivamente ai chiamanti che non possiedono
+     * un EcuDefinition.
      *
      * @return target compatibile.
      */
@@ -332,9 +572,6 @@ public class DiagnosticPidExecutor {
     /**
      * Restituisce il transport utilizzato.
      *
-     * Utile soprattutto per test e per le future implementazioni
-     * del livello di comunicazione.
-     *
      * @return transport.
      */
     @NonNull
@@ -345,12 +582,6 @@ public class DiagnosticPidExecutor {
 
     /**
      * Risultato della singola esecuzione diagnostica.
-     *
-     * Contiene:
-     *
-     * - request;
-     * - risposta raw;
-     * - risposta interpretata, quando disponibile.
      */
     public static class DiagnosticPidExecution {
 
@@ -361,13 +592,13 @@ public class DiagnosticPidExecutor {
         private final String request;
 
         /**
-         * Risposta raw ricevuta.
+         * Risposta raw.
          */
         @NonNull
         private final String rawResponse;
 
         /**
-         * Risposta diagnostica interpretata.
+         * Risposta interpretata, quando disponibile.
          */
         private final DiagnosticResponseResult parsedResponse;
 
@@ -416,17 +647,18 @@ public class DiagnosticPidExecutor {
         }
 
         /**
-         * Restituisce il risultato diagnostico interpretato.
+         * Restituisce la risposta interpretata.
          *
          * @return risultato oppure null.
          */
-        public DiagnosticResponseResult getParsedResponse() {
+        public DiagnosticResponseResult
+        getParsedResponse() {
 
             return parsedResponse;
         }
 
         /**
-         * Indica se la risposta è stata interpretata.
+         * Indica se esiste un risultato interpretato.
          *
          * @return true se disponibile.
          */

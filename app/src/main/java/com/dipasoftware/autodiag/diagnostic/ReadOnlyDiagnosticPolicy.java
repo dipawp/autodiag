@@ -250,4 +250,49 @@ public class ReadOnlyDiagnosticPolicy
             return -1;
         }
     }
+
+
+
+    /**
+     * Verifica direttamente una richiesta HEX senza richiedere
+     * una PidDefinition.
+     *
+     * Utilizza la stessa whitelist read-only di isAllowed().
+     *
+     * @param request richiesta HEX.
+     *
+     * @return true se consentita.
+     */
+    public boolean isAllowedRaw(
+            @NonNull String request) {
+
+        String normalized =
+                normalize(
+                        request
+                );
+
+        if (normalized.length() < 2) {
+
+            return false;
+        }
+
+        int service =
+                parseByte(
+                        normalized.substring(
+                                0,
+                                2
+                        )
+                );
+
+        if (isObdReadService(
+                service
+        )) {
+
+            return true;
+        }
+
+        return isUdsReadService(
+                service
+        );
+    }
 }

@@ -17,6 +17,8 @@ import com.dipasoftware.autodiag.bluetooth.BluetoothPermissionManager;
 import com.dipasoftware.autodiag.connection.BluetoothConnection;
 import com.dipasoftware.autodiag.connection.ConnectionManager;
 import com.dipasoftware.autodiag.databinding.ActivityMainBinding;
+import com.dipasoftware.autodiag.diagnostic.DiagnosticRealConnectionCheck;
+import com.dipasoftware.autodiag.diagnostic.Elm327Manager;
 import com.dipasoftware.autodiag.settings.BluetoothSettingsFragment;
 import com.dipasoftware.autodiag.settings.SettingsFragment;
 
@@ -430,6 +432,10 @@ public class MainActivity extends AppCompatActivity {
                         connection
                 );
 
+                runElm327ConnectionCheck(
+                        connection
+                );
+
                 runOnUiThread(() -> {
 
                     Toast.makeText(
@@ -567,5 +573,73 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
 
         binding = null;
+    }
+
+
+    /**
+     * Esegue il controllo non distruttivo dell'ELM327 dopo
+     * una connessione Bluetooth riuscita.
+     *
+     * Vengono utilizzati esclusivamente:
+     *
+     * ATI
+     * ATDP
+     *
+     * Non viene eseguita alcuna richiesta diagnostica alla ECU.
+     */
+    private void runElm327ConnectionCheck(
+            @NonNull BluetoothConnection connection) {
+
+        connectionExecutor.execute(() -> {
+
+            try {
+
+                Elm327Manager manager =
+                        new Elm327Manager(
+                                connection
+                        );
+
+                DiagnosticRealConnectionCheck.Result result =
+                        manager.checkRealConnection();
+
+                String identification =
+                        result.getIdentificationResponse();
+
+                String protocol =
+                        result.getProtocolResponse();
+
+                runOnUiThread(() -> {
+                    String message;
+                    if (result.isCanReady()) {
+                        message = "ELM327 pronto\n" + identification + "\n" + protocol;
+                    } else {
+                        message = "ELM327 collegato\n" + identification + "\n" + protocol;
+                    }
+                    Toast.makeText(this,message,Toast.LENGTH_LONG).show();
+                });
+
+            } catch (
+                    IOException exception) {
+
+                runOnUiThread(() ->
+                        Toast.makeText(
+                                this,
+                                "Check ELM327 fallito: "
+                                        + exception.getMessage(),
+                                Toast.LENGTH_LONG
+                        ).show()
+                );
+            } catch (
+                    RuntimeException exception) {
+
+                runOnUiThread(() ->
+                        Toast.makeText(
+                                this,
+                                "Errore durante il check ELM327",
+                                Toast.LENGTH_LONG
+                        ).show()
+                );
+            }
+        });
     }
 }
