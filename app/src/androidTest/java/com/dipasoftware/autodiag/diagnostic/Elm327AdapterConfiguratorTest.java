@@ -263,7 +263,7 @@ public class Elm327AdapterConfiguratorTest {
         );
 
         assertEquals(
-                "ATSP6",
+                "ATTP6",
                 sender.getCommands().get(0)
         );
 

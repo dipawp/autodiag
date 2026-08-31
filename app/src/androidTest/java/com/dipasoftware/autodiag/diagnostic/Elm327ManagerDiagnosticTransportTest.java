@@ -112,7 +112,7 @@ public class Elm327ManagerDiagnosticTransportTest {
         );
 
         assertEquals(
-                "ATSP6\r",
+                "ATTP6\r",
                 connection
                         .getSentCommands()
                         .get(0)

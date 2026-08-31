@@ -1836,4 +1836,47 @@ public class Elm327Manager {
                 createCatalogDiagnosticPidExecutor()
         );
     }
+
+
+    /**
+     * Crea il controllo della connessione reale ELM327.
+     *
+     * Il controllo utilizza esclusivamente i comandi AT
+     * dell'adapter ATI e ATDP.
+     *
+     * @return controllo connessione ELM327.
+     */
+    @NonNull
+    public DiagnosticRealConnectionCheck
+    createRealConnectionCheck() {
+
+        return new DiagnosticRealConnectionCheck(
+                new Elm327ManagerCommandSender(
+                        this
+                )
+        );
+    }
+
+
+    /**
+     * Esegue il controllo base dell'adapter ELM327.
+     *
+     * Questo metodo utilizza esclusivamente:
+     *
+     * ATI
+     * ATDP
+     *
+     * Non invia richieste diagnostiche alla ECU.
+     *
+     * @return risultato del controllo.
+     * @throws IOException errore di comunicazione.
+     */
+    @NonNull
+    public DiagnosticRealConnectionCheck.Result
+    checkRealConnection()
+            throws IOException {
+
+        return createRealConnectionCheck()
+                .check();
+    }
 }

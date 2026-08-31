@@ -472,7 +472,7 @@ public class Elm327DiagnosticTransportTest {
         );
 
         assertEquals(
-                "ATSP6",
+                "ATTP6",
                 commandSender.getCommands().get(0)
         );
 

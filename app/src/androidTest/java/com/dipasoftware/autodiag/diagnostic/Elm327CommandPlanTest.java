@@ -51,7 +51,7 @@ public class Elm327CommandPlanTest {
         );
 
         assertEquals(
-                "ATSP6",
+                "ATTP6",
                 plan.getCommand(0)
         );
 
@@ -227,6 +227,69 @@ public class Elm327CommandPlanTest {
 
         configurator.buildCommandPlan(
                 target
+        );
+    }
+
+
+    @Test
+    public void unspecifiedCanBitrateKeepsAutomaticProtocol()
+            throws Exception {
+
+        DiagnosticTargetDefinition target =
+                new DiagnosticTargetDefinition(
+                        "CAN",
+                        "7E0",
+                        "7E8",
+                        "PHYSICAL",
+                        11,
+                        0
+                );
+
+        Elm327AdapterConfigurator configurator =
+                new Elm327AdapterConfigurator();
+
+        Elm327CommandPlan plan =
+                configurator.buildCommandPlan(
+                        target
+                );
+
+        assertEquals(
+                "ATSP0",
+                plan.getCommand(0)
+        );
+    }
+
+
+    @Test
+    public void explicit500KbitTargetUsesTryProtocol()
+            throws Exception {
+
+        DiagnosticTargetDefinition target =
+                new DiagnosticTargetDefinition(
+                        "CAN",
+                        "7E0",
+                        "7E8",
+                        "PHYSICAL",
+                        11,
+                        500
+                );
+
+        Elm327AdapterConfigurator configurator =
+                new Elm327AdapterConfigurator();
+
+        Elm327CommandPlan plan =
+                configurator.buildCommandPlan(
+                        target
+                );
+
+        assertEquals(
+                "ATTP6",
+                plan.getCommand(0)
+        );
+
+        assertTrue(
+                !plan.getCommand(0)
+                        .equals("ATSP6")
         );
     }
 }

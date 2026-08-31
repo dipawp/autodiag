@@ -21,16 +21,20 @@ import java.util.List;
  * Traduce un DiagnosticTargetDefinition in un piano di configurazione
  * ELM327.
  *
- * La classe NON invia i comandi.
+ * La classe NON invia direttamente i comandi.
  *
  * Produce esclusivamente Elm327CommandPlan.
  *
- * Regole:
+ * Strategia:
  *
- * - bitrate 0    = non specificato -> ATSP0
- * - 500 kbit/s
- *      11 bit     -> ATSP6
- *      29 bit     -> ATSP7
+ * - bitrate 0    -> ATSP0
+ *                   protocollo automatico, compatibilità legacy;
+ *
+ * - bitrate 500  -> ATTP6 per CAN 11 bit;
+ *                   ATTP7 per CAN 29 bit.
+ *
+ * ATTP viene utilizzato per provare il protocollo senza renderlo
+ * il protocollo predefinito dell'ELM327.
  *
  * ****************************************************************************
  */
@@ -48,7 +52,7 @@ public class Elm327AdapterConfigurator
     private Elm327CommandPlan lastPlan;
 
     /**
-     * Stato del configuratore.
+     * Stato configuratore.
      */
     private boolean configured;
 
@@ -68,9 +72,9 @@ public class Elm327AdapterConfigurator
     }
 
     /**
-     * Registra il target e genera il piano.
+     * Configura logicamente l'adapter.
      *
-     * Nessuna comunicazione fisica viene effettuata.
+     * Non viene eseguita alcuna comunicazione.
      *
      * @param target target diagnostico.
      *
@@ -102,7 +106,7 @@ public class Elm327AdapterConfigurator
     }
 
     /**
-     * Ripristina la configurazione logica.
+     * Ripristina lo stato del configuratore.
      *
      * @throws IOException non utilizzata.
      */
@@ -121,23 +125,22 @@ public class Elm327AdapterConfigurator
     }
 
     /**
-     * Costruisce il piano ELM327.
+     * Costruisce il piano di configurazione.
      *
      * Regole:
      *
-     * bitrate = 0:
+     * bitrate 0:
      *
      *     ATSP0
      *
-     *     Il catalogo non specifica il bitrate, quindi
-     *     non facciamo assunzioni.
+     *     Il catalogo non specifica il bitrate.
      *
-     * bitrate = 500:
+     * bitrate 500:
      *
-     *     11 bit -> ATSP6
-     *     29 bit -> ATSP7
+     *     11 bit -> ATTP6
+     *     29 bit -> ATTP7
      *
-     * Altri bitrate non sono ancora mappati.
+     * Altri bitrate non sono ancora supportati.
      *
      * @param target target diagnostico.
      *
@@ -166,11 +169,15 @@ public class Elm327AdapterConfigurator
 
         /*
          * ---------------------------------------------------------
-         * SELEZIONE PROTOCOLLO ELM327
+         * SELEZIONE PROTOCOLLO
          * ---------------------------------------------------------
          *
-         * 0 = bitrate non specificato
-         *     -> lasciamo all'ELM327 il protocollo automatico.
+         * Se il bitrate non è specificato manteniamo
+         * il comportamento legacy ATSP0.
+         *
+         * Se invece il catalogo specifica 500 kbit/s,
+         * utilizziamo ATTP per provare il protocollo
+         * senza selezionarlo come default.
          */
         if (bitrate == 0) {
 
@@ -180,22 +187,16 @@ public class Elm327AdapterConfigurator
 
         } else if (bitrate == 500) {
 
-            /*
-             * 6 = ISO 15765-4 CAN 11 bit / 500 kbaud
-             */
             if (target.isStandardCanId()) {
 
                 commands.add(
-                        "ATSP6"
+                        "ATTP6"
                 );
 
-                /*
-                 * 7 = ISO 15765-4 CAN 29 bit / 500 kbaud
-                 */
             } else if (target.isExtendedCanId()) {
 
                 commands.add(
-                        "ATSP7"
+                        "ATTP7"
                 );
 
             } else {
@@ -238,7 +239,7 @@ public class Elm327AdapterConfigurator
 
         /*
          * ---------------------------------------------------------
-         * OUTPUT ELM327
+         * OUTPUT
          * ---------------------------------------------------------
          */
         commands.add(
@@ -256,7 +257,63 @@ public class Elm327AdapterConfigurator
     }
 
     /**
-     * Restituisce il target configurato.
+     * Esegue l'ultimo piano.
+     *
+     * Ogni comando deve restituire una risposta OK.
+     *
+     * @param executor esecutore comandi AT.
+     *
+     * @throws IOException errore configurazione.
+     */
+    public void executePlan(
+            @NonNull Elm327CommandExecutor executor)
+            throws IOException {
+
+        if (lastPlan == null) {
+
+            throw new IOException(
+                    "Nessun piano di configurazione disponibile."
+            );
+        }
+
+        for (
+                String command :
+                lastPlan.getCommands()
+        ) {
+
+            executor.executeExpectOk(
+                    command
+            );
+        }
+
+        configured =
+                true;
+    }
+
+    /**
+     * Costruisce ed esegue il piano.
+     *
+     * @param target target.
+     * @param executor executor AT.
+     *
+     * @throws IOException errore configurazione.
+     */
+    public void configureAndExecute(
+            @NonNull DiagnosticTargetDefinition target,
+            @NonNull Elm327CommandExecutor executor)
+            throws IOException {
+
+        configure(
+                target
+        );
+
+        executePlan(
+                executor
+        );
+    }
+
+    /**
+     * Restituisce target configurato.
      *
      * @return target oppure null.
      */
@@ -267,7 +324,7 @@ public class Elm327AdapterConfigurator
     }
 
     /**
-     * Restituisce l'ultimo piano.
+     * Restituisce ultimo piano.
      *
      * @return piano oppure null.
      */
@@ -277,7 +334,7 @@ public class Elm327AdapterConfigurator
     }
 
     /**
-     * Indica se il configuratore è attivo.
+     * Indica se configurato.
      *
      * @return true se configurato.
      */
@@ -300,95 +357,5 @@ public class Elm327AdapterConfigurator
         }
 
         return lastPlan.getCommands();
-    }
-
-
-    /**
-     * Esegue il piano di configurazione sull'ELM327.
-     *
-     * Ogni comando viene eseguito in ordine.
-     *
-     * Se un comando restituisce una risposta diversa da OK,
-     * la configurazione viene interrotta immediatamente.
-     *
-     * @param executor esecutore dei comandi AT.
-     * @throws IOException errore di comunicazione o configurazione.
-     */
-    public void executePlan(
-            @NonNull Elm327CommandExecutor executor)
-            throws IOException {
-
-        if (lastPlan == null) {
-
-            throw new IOException(
-                    "Nessun piano di configurazione disponibile."
-            );
-        }
-
-        configured =
-                false;
-
-        for (
-                String command :
-                lastPlan.getCommands()
-        ) {
-
-            executor.executeExpectOk(
-                    command
-            );
-        }
-
-        configured =
-                true;
-    }
-
-    /**
-     * Costruisce ed esegue il piano per il target indicato.
-     *
-     * @param target target diagnostico.
-     * @param executor esecutore AT.
-     *
-     * @throws IOException errore di configurazione.
-     */
-    public void configureAndExecute(
-            @NonNull DiagnosticTargetDefinition target,
-            @NonNull Elm327CommandExecutor executor)
-            throws IOException {
-
-        /*
-         * Costruzione del piano.
-         */
-        configure(
-                target
-        );
-
-        /*
-         * Esecuzione del piano.
-         */
-        executePlan(
-                executor
-        );
-    }
-
-    /**
-     * Costruisce ed esegue la configurazione ELM327.
-     *
-     * @param target target diagnostico.
-     * @param configurationExecutor esecutore configurazione.
-     *
-     * @throws IOException errore.
-     */
-    public void configureAndExecute(
-            @NonNull DiagnosticTargetDefinition target,
-            @NonNull Elm327ConfigurationExecutor configurationExecutor)
-            throws IOException {
-
-        configure(
-                target
-        );
-
-        configurationExecutor.execute(
-                lastPlan
-        );
     }
 }
