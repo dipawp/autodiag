@@ -42,11 +42,8 @@ public class DiagnosticLogger {
      *
      * @param context context applicativo.
      */
-    public DiagnosticLogger(
-            @NonNull Context context) {
-
-        this.context =
-                context.getApplicationContext();
+    public DiagnosticLogger(@NonNull Context context) {
+        this.context = context.getApplicationContext();
     }
 
     /**
@@ -59,29 +56,18 @@ public class DiagnosticLogger {
      * @throws IOException errore di scrittura.
      */
     @NonNull
-    public File saveLog(
-            @NonNull String content)
-            throws IOException {
+    public File saveLog(@NonNull String content) throws IOException {
 
         /*
          * Cartella:
          *
          * Android/data/<package>/files/diagnostic_logs
          */
-        File directory =
-                new File(
-                        context.getExternalFilesDir(null),
-                        "diagnostic_logs"
-                );
+        File directory = new File(context.getExternalFilesDir(null),"diagnostic_logs");
 
         if (!directory.exists()) {
-
-            if (!directory.mkdirs() &&
-                    !directory.exists()) {
-
-                throw new IOException(
-                        "Impossibile creare la cartella log."
-                );
+            if (!directory.mkdirs() && !directory.exists()) {
+                throw new IOException("Impossibile creare la cartella log.");
             }
         }
 
@@ -92,39 +78,15 @@ public class DiagnosticLogger {
          *
          * 20260817_151530
          */
-        String timestamp =
-                new SimpleDateFormat(
-                        "yyyyMMdd_HHmmss",
-                        Locale.US
-                ).format(
-                        new Date()
-                );
-
-        File file =
-                new File(
-                        directory,
-                        "diagnostic_"
-                                + timestamp
-                                + ".txt"
-                );
-
-        FileWriter writer =
-                new FileWriter(
-                        file,
-                        false
-                );
+        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss",Locale.US).format(new Date());
+        File file = new File(directory, "diagnostic_" + timestamp + ".txt");
+        FileWriter writer = new FileWriter(file,false);
 
         try {
-
-            writer.write(
-                    content
-            );
-
+            writer.write(content);
         } finally {
-
             writer.close();
         }
-
         return file;
     }
 }

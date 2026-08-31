@@ -1,5 +1,6 @@
 package com.dipasoftware.autodiag.diagnostic;
 
+import android.app.Application;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -35,8 +36,7 @@ public class DiagnosticRealConnectionCheck {
     /**
      * Tag utilizzato per Logcat.
      */
-    private static final String TAG =
-            "DiagnosticRealConnectionCheck";
+    private static final String TAG = "DiagnosticRealConnectionCheck";
 
     /**
      * Sender verso l'ELM327.
@@ -50,21 +50,18 @@ public class DiagnosticRealConnectionCheck {
     @NonNull
     private final Elm327CommandExecutor commandExecutor;
 
+
     /**
      * Costruttore.
      *
      * @param commandSender sender ELM327.
      */
-    public DiagnosticRealConnectionCheck(
-            @NonNull Elm327CommandExecutor.CommandSender commandSender) {
+    public DiagnosticRealConnectionCheck(@NonNull Elm327CommandExecutor.CommandSender commandSender) {
 
-        this.commandSender =
-                commandSender;
+        this.commandSender = commandSender;
 
-        this.commandExecutor =
-                new Elm327CommandExecutor(
-                        commandSender
-                );
+        this.commandExecutor = new Elm327CommandExecutor(commandSender);
+
     }
 
     /**
@@ -75,122 +72,52 @@ public class DiagnosticRealConnectionCheck {
      * @throws java.io.IOException errore comunicazione.
      */
     @NonNull
-    public Result check()
-            throws java.io.IOException {
+    public Result check() throws java.io.IOException {
 
-        Log.d(
-                TAG,
-                "=================================================="
-        );
+        Log.d(TAG,"==================================================");
 
-        Log.d(
-                TAG,
-                "INIZIO CHECK ELM327"
-        );
+        Log.d(TAG,"INIZIO CHECK ELM327");
 
-        Log.d(
-                TAG,
-                "Invio comando adapter: ATI"
-        );
+        Log.d(TAG,"Invio comando adapter: ATI");
 
-        String identification =
-                commandExecutor.execute(
-                        "ATI"
-                );
+        String identification = commandExecutor.execute("ATI");
 
-        Log.d(
-                TAG,
-                "Risposta ATI: "
-                        + identification
-        );
+        Log.d(TAG,"Risposta ATI: " + identification);
 
         if (identification.trim().isEmpty()) {
 
-            Log.e(
-                    TAG,
-                    "ATI ha restituito una risposta vuota."
-            );
+            Log.e(TAG,"ATI ha restituito una risposta vuota.");
 
-            throw new java.io.IOException(
-                    "L'ELM327 non ha restituito "
-                            + "una risposta a ATI."
-            );
+            throw new java.io.IOException("L'ELM327 non ha restituito " + "una risposta a ATI.");
         }
 
-        Log.d(
-                TAG,
-                "Invio comando adapter: ATDP"
-        );
+        Log.d(TAG,"Invio comando adapter: ATDP");
 
-        String protocol =
-                commandExecutor.execute(
-                        "ATDP"
-                );
+        String protocol = commandExecutor.execute("ATDP");
 
-        Log.d(
-                TAG,
-                "Risposta ATDP: "
-                        + protocol
-        );
+        Log.d(TAG,"Risposta ATDP: " + protocol);
 
         if (protocol.trim().isEmpty()) {
+            Log.e(TAG,"ATDP ha restituito una risposta vuota.");
 
-            Log.e(
-                    TAG,
-                    "ATDP ha restituito una risposta vuota."
-            );
-
-            throw new java.io.IOException(
-                    "L'ELM327 non ha restituito "
-                            + "una risposta a ATDP."
-            );
+            throw new java.io.IOException("L'ELM327 non ha restituito " + "una risposta a ATDP.");
         }
 
-        Result result =
-                new Result(
-                        identification,
-                        protocol
-                );
+        Result result = new Result(identification,protocol);
 
-        Log.d(
-                TAG,
-                "ELM327 check completato."
-        );
+        Log.d(TAG,"ELM327 check completato.");
 
-        Log.d(
-                TAG,
-                "ELM327 riconosciuto: "
-                        + result.looksLikeElm327()
-        );
+        Log.d(TAG,"ELM327 riconosciuto: " + result.looksLikeElm327());
 
-        Log.d(
-                TAG,
-                "Protocollo CAN: "
-                        + result.reportsCanProtocol()
-        );
+        Log.d(TAG,"Protocollo CAN: " + result.reportsCanProtocol());
 
-        Log.d(
-                TAG,
-                "Protocollo ISO 15765: "
-                        + result.reportsIso15765()
-        );
+        Log.d(TAG,"Protocollo ISO 15765: " + result.reportsIso15765());
 
-        Log.d(
-                TAG,
-                "CAN READY: "
-                        + result.isCanReady()
-        );
+        Log.d(TAG,"CAN READY: " + result.isCanReady());
 
-        Log.d(
-                TAG,
-                "FINE CHECK ELM327"
-        );
+        Log.d(TAG,"FINE CHECK ELM327");
 
-        Log.d(
-                TAG,
-                "=================================================="
-        );
-
+        Log.d(TAG,"==================================================");
         return result;
     }
 
@@ -204,7 +131,6 @@ public class DiagnosticRealConnectionCheck {
     @NonNull
     Elm327CommandExecutor.CommandSender
     getCommandSender() {
-
         return commandSender;
     }
 
@@ -231,15 +157,9 @@ public class DiagnosticRealConnectionCheck {
          * @param identificationResponse risposta ATI.
          * @param protocolResponse risposta ATDP.
          */
-        public Result(
-                @NonNull String identificationResponse,
-                @NonNull String protocolResponse) {
-
-            this.identificationResponse =
-                    identificationResponse.trim();
-
-            this.protocolResponse =
-                    protocolResponse.trim();
+        public Result(@NonNull String identificationResponse, @NonNull String protocolResponse) {
+            this.identificationResponse = identificationResponse.trim();
+            this.protocolResponse = protocolResponse.trim();
         }
 
         /**
@@ -249,7 +169,6 @@ public class DiagnosticRealConnectionCheck {
          */
         @NonNull
         public String getIdentificationResponse() {
-
             return identificationResponse;
         }
 
@@ -260,7 +179,6 @@ public class DiagnosticRealConnectionCheck {
          */
         @NonNull
         public String getProtocolResponse() {
-
             return protocolResponse;
         }
 
@@ -270,10 +188,7 @@ public class DiagnosticRealConnectionCheck {
          * @return true se valide.
          */
         public boolean isValid() {
-
-            return !identificationResponse.isEmpty()
-                    &&
-                    !protocolResponse.isEmpty();
+            return !identificationResponse.isEmpty() && !protocolResponse.isEmpty();
         }
 
         /**
@@ -284,10 +199,7 @@ public class DiagnosticRealConnectionCheck {
          * @return true se sembra ELM327.
          */
         public boolean looksLikeElm327() {
-
-            return identificationResponse
-                    .toUpperCase()
-                    .contains("ELM327");
+            return identificationResponse.toUpperCase().contains("ELM327");
         }
 
         /**
@@ -296,10 +208,7 @@ public class DiagnosticRealConnectionCheck {
          * @return true se CAN.
          */
         public boolean reportsCanProtocol() {
-
-            return protocolResponse
-                    .toUpperCase()
-                    .contains("CAN");
+            return protocolResponse.toUpperCase().contains("CAN");
         }
 
         /**
@@ -308,10 +217,7 @@ public class DiagnosticRealConnectionCheck {
          * @return true se ISO 15765.
          */
         public boolean reportsIso15765() {
-
-            return protocolResponse
-                    .toUpperCase()
-                    .contains("15765");
+            return protocolResponse.toUpperCase().contains("15765");
         }
 
         /**
@@ -324,13 +230,7 @@ public class DiagnosticRealConnectionCheck {
          */
         public boolean isCanReady() {
 
-            return isValid()
-                    &&
-                    looksLikeElm327()
-                    &&
-                    reportsCanProtocol()
-                    &&
-                    reportsIso15765();
+            return isValid() && looksLikeElm327() && reportsCanProtocol() && reportsIso15765();
         }
     }
 }

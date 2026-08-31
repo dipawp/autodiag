@@ -1882,17 +1882,24 @@ public class Elm327Manager {
 
 
     /**
-     * Crea il controllo VIN reale utilizzando
-     * il DiagnosticPidExecutor catalog-driven condiviso.
+     * Crea il controllo VIN reale utilizzando il logger diagnostico
+     * dell'applicazione.
+     *
+     * @param context context applicativo.
      *
      * @return vehicle check.
      */
     @NonNull
-    public DiagnosticRealVehicleCheck
-    createRealVehicleCheck() {
+    public DiagnosticRealVehicleCheck createRealVehicleCheck(
+            @NonNull android.content.Context context) {
 
         DiagnosticPidExecutor executor =
                 createCatalogDiagnosticPidExecutor();
+
+        DiagnosticLogger logger =
+                new DiagnosticLogger(
+                        context
+                );
 
         return new DiagnosticRealVehicleCheck(
                 request -> {
@@ -1908,15 +1915,15 @@ public class Elm327Manager {
                             );
 
                     DiagnosticPidExecutor
-                            .DiagnosticPidExecution
-                            execution =
+                            .DiagnosticPidExecution execution =
                             executor.executeRaw(
                                     target,
                                     request
                             );
 
                     return execution.getRawResponse();
-                }
+                },
+                logger
         );
     }
 }

@@ -4,6 +4,9 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
+import java.io.File;
+import java.io.IOException;
+
 /**
  * ****************************************************************************
  *
@@ -15,14 +18,17 @@ import androidx.annotation.NonNull;
  *
  * Esegue il primo controllo diagnostico reale del veicolo.
  *
- * La prima operazione utilizzata è esclusivamente:
+ * Operazione:
  *
  *     09 02
  *
- * cioè la richiesta OBD-II del VIN.
+ * La richiesta viene eseguita tramite DiagnosticPidExecutor e quindi
+ * sottoposta alla ReadOnlyDiagnosticPolicy.
  *
- * La richiesta passa attraverso DiagnosticPidExecutor e quindi
- * attraverso la ReadOnlyDiagnosticPolicy.
+ * Il risultato viene:
+ *
+ * - scritto nel Logcat;
+ * - salvato tramite DiagnosticLogger quando disponibile.
  *
  * NON esegue:
  *
@@ -50,10 +56,7 @@ public class DiagnosticRealVehicleCheck {
             "0902";
 
     /**
-     * Target utilizzato per la richiesta OBD-II funzionale.
-     *
-     * 7DF = functional request.
-     * 7E8 = tipica risposta powertrain.
+     * Target OBD funzionale.
      */
     private static final String REQUEST_ID =
             "7DF";
@@ -74,53 +77,76 @@ public class DiagnosticRealVehicleCheck {
     private final DiagnosticCommandSender commandSender;
 
     /**
-     * Costruttore.
+     * Logger diagnostico.
+     *
+     * Può essere null nel costruttore utilizzato dai test legacy.
+     */
+    private final DiagnosticLogger diagnosticLogger;
+
+    /**
+     * Costruttore compatibile con il percorso precedente.
+     *
+     * Non salva file.
      *
      * @param commandSender sender diagnostico.
      */
     public DiagnosticRealVehicleCheck(
             @NonNull DiagnosticCommandSender commandSender) {
 
-        this.commandSender =
-                commandSender;
+        this(
+                commandSender,
+                null
+        );
     }
 
-
-
-
     /**
-     * Costruttore basato direttamente sul DiagnosticPidExecutor.
+     * Costruttore completo.
      *
-     * @param executor executor diagnostico.
+     * @param commandSender sender diagnostico.
+     * @param diagnosticLogger logger file.
      */
     public DiagnosticRealVehicleCheck(
-            @NonNull DiagnosticPidExecutor executor) {
+            @NonNull DiagnosticCommandSender commandSender,
+            DiagnosticLogger diagnosticLogger) {
 
-        this(
-                request -> {
+        this.commandSender =
+                commandSender;
 
-                    DiagnosticPidExecutionBridge bridge =
-                            new DiagnosticPidExecutionBridge(
-                                    executor
-                            );
-
-                    return bridge.send(
-                            request
-                    );
-                }
-        );
+        this.diagnosticLogger =
+                diagnosticLogger;
     }
 
     /**
      * Esegue la richiesta VIN reale.
      *
+     * Il report viene scritto nel file logger anche in caso di errore.
+     *
      * @return risultato.
      *
-     * @throws java.io.IOException errore comunicazione.
+     * @throws IOException errore comunicazione o parsing.
      */
     @NonNull
     public Result readVin()
-            throws java.io.IOException {
+            throws IOException {
+
+        StringBuilder report =
+                new StringBuilder();
+
+        appendReportLine(
+                report,
+                "=================================================="
+        );
+
+        appendReportLine(
+                report,
+                "INIZIO VEHICLE CHECK"
+        );
+
+        appendReportLine(
+                report,
+                "REQUEST: "
+                        + VIN_REQUEST
+        );
 
         Log.d(
                 TAG,
@@ -138,22 +164,71 @@ public class DiagnosticRealVehicleCheck {
                         + VIN_REQUEST
         );
 
-        String response =
-                commandSender.send(
-                        VIN_REQUEST
-                );
+        String response;
+
+        try {
+
+            response =
+                    commandSender.send(
+                            VIN_REQUEST
+                    );
+
+        } catch (
+                IOException exception) {
+
+            appendReportLine(
+                    report,
+                    "ERRORE INVIO: "
+                            + exception.getMessage()
+            );
+
+            appendReportLine(
+                    report,
+                    "FINE VEHICLE CHECK"
+            );
+
+            saveReportSafely(
+                    report
+            );
+
+            throw exception;
+        }
 
         if (response == null) {
 
-            Log.e(
-                    TAG,
-                    "Risposta nulla alla richiesta VIN."
+            appendReportLine(
+                    report,
+                    "RESPONSE RAW: <null>"
             );
 
-            throw new java.io.IOException(
+            appendReportLine(
+                    report,
+                    "ERRORE: nessuna risposta alla richiesta VIN."
+            );
+
+            appendReportLine(
+                    report,
+                    "FINE VEHICLE CHECK"
+            );
+
+            saveReportSafely(
+                    report
+            );
+
+            throw new IOException(
                     "Nessuna risposta alla richiesta VIN."
             );
         }
+
+        appendReportLine(
+                report,
+                "RESPONSE RAW:"
+        );
+
+        appendReportLine(
+                report,
+                response
+        );
 
         Log.d(
                 TAG,
@@ -167,12 +242,21 @@ public class DiagnosticRealVehicleCheck {
 
         if (response.trim().isEmpty()) {
 
-            Log.e(
-                    TAG,
-                    "Risposta VIN vuota."
+            appendReportLine(
+                    report,
+                    "ERRORE: risposta VIN vuota."
             );
 
-            throw new java.io.IOException(
+            appendReportLine(
+                    report,
+                    "FINE VEHICLE CHECK"
+            );
+
+            saveReportSafely(
+                    report
+            );
+
+            throw new IOException(
                     "Risposta VIN vuota."
             );
         }
@@ -195,17 +279,59 @@ public class DiagnosticRealVehicleCheck {
         } catch (
                 RuntimeException exception) {
 
+            appendReportLine(
+                    report,
+                    "ERRORE PARSING VIN: "
+                            + exception.getMessage()
+            );
+
+            appendReportLine(
+                    report,
+                    "FINE VEHICLE CHECK"
+            );
+
+            saveReportSafely(
+                    report
+            );
+
             Log.e(
                     TAG,
                     "Impossibile interpretare la risposta VIN.",
                     exception
             );
 
-            throw new java.io.IOException(
+            throw new IOException(
                     "Risposta VIN non valida.",
                     exception
             );
         }
+
+        appendReportLine(
+                report,
+                "VIN: "
+                        + vin
+        );
+
+        appendReportLine(
+                report,
+                "VIN LENGTH: "
+                        + vin.length()
+        );
+
+        appendReportLine(
+                report,
+                "RESULT: VALID"
+        );
+
+        appendReportLine(
+                report,
+                "FINE VEHICLE CHECK"
+        );
+
+        appendReportLine(
+                report,
+                "=================================================="
+        );
 
         Log.d(
                 TAG,
@@ -229,15 +355,81 @@ public class DiagnosticRealVehicleCheck {
                 "=================================================="
         );
 
+        File reportFile =
+                saveReportSafely(
+                        report
+                );
+
         return new Result(
                 response,
-                vin
+                vin,
+                reportFile
         );
     }
 
     /**
-     * Restituisce il target OBD funzionale utilizzato
-     * dal vehicle check.
+     * Salva il report tramite DiagnosticLogger.
+     *
+     * Gli errori del logger non devono nascondere l'esito
+     * della richiesta diagnostica.
+     *
+     * @param report contenuto.
+     *
+     * @return file creato oppure null.
+     */
+    private File saveReportSafely(
+            @NonNull StringBuilder report) {
+
+        if (diagnosticLogger == null) {
+
+            return null;
+        }
+
+        try {
+
+            File file =
+                    diagnosticLogger.saveLog(
+                            report.toString()
+                    );
+
+            Log.d(
+                    TAG,
+                    "Report salvato in: "
+                            + file.getAbsolutePath()
+            );
+
+            return file;
+
+        } catch (
+                IOException exception) {
+
+            Log.e(
+                    TAG,
+                    "Impossibile salvare il report diagnostico.",
+                    exception
+            );
+
+            return null;
+        }
+    }
+
+    /**
+     * Aggiunge una riga al report.
+     *
+     * @param report report.
+     * @param line riga.
+     */
+    private void appendReportLine(
+            @NonNull StringBuilder report,
+            @NonNull String line) {
+
+        report
+                .append(line)
+                .append('\n');
+    }
+
+    /**
+     * Restituisce il target OBD funzionale.
      *
      * @return target.
      */
@@ -252,6 +444,19 @@ public class DiagnosticRealVehicleCheck {
                 CAN_ID_BITS,
                 CAN_BITRATE_KBPS
         );
+    }
+
+    /**
+     * Restituisce il sender.
+     *
+     * Package-private per test.
+     *
+     * @return sender.
+     */
+    @NonNull
+    DiagnosticCommandSender getCommandSender() {
+
+        return commandSender;
     }
 
     /**
@@ -272,20 +477,30 @@ public class DiagnosticRealVehicleCheck {
         private final String vin;
 
         /**
+         * File report.
+         */
+        private final File reportFile;
+
+        /**
          * Costruttore.
          *
          * @param rawResponse risposta raw.
          * @param vin VIN.
+         * @param reportFile file report.
          */
         public Result(
                 @NonNull String rawResponse,
-                @NonNull String vin) {
+                @NonNull String vin,
+                File reportFile) {
 
             this.rawResponse =
                     rawResponse;
 
             this.vin =
                     vin;
+
+            this.reportFile =
+                    reportFile;
         }
 
         /**
@@ -311,7 +526,18 @@ public class DiagnosticRealVehicleCheck {
         }
 
         /**
-         * Verifica che il VIN sia completo.
+         * File report.
+         *
+         * @return file oppure null se il logger non era disponibile
+         *         o il salvataggio è fallito.
+         */
+        public File getReportFile() {
+
+            return reportFile;
+        }
+
+        /**
+         * Verifica VIN.
          *
          * @return true se lungo 17 caratteri.
          */
@@ -333,57 +559,11 @@ public class DiagnosticRealVehicleCheck {
          *
          * @return risposta raw.
          *
-         * @throws java.io.IOException errore.
+         * @throws IOException errore.
          */
         @NonNull
         String send(
                 @NonNull String request)
-                throws java.io.IOException;
-    }
-
-
-    /**
-     * Bridge interno tra DiagnosticRealVehicleCheck
-     * e DiagnosticPidExecutor.
-     */
-    private static class DiagnosticPidExecutionBridge {
-
-        @NonNull
-        private final DiagnosticPidExecutor executor;
-
-        DiagnosticPidExecutionBridge(
-                @NonNull DiagnosticPidExecutor executor) {
-
-            this.executor =
-                    executor;
-        }
-
-        @NonNull
-        String send(
-                @NonNull String request)
-                throws java.io.IOException {
-
-            DiagnosticRealVehicleCheck temporary =
-                    null;
-
-            DiagnosticTargetDefinition target =
-                    new DiagnosticTargetDefinition(
-                            "CAN",
-                            REQUEST_ID,
-                            RESPONSE_ID,
-                            "FUNCTIONAL",
-                            CAN_ID_BITS,
-                            CAN_BITRATE_KBPS
-                    );
-
-            DiagnosticPidExecutor.DiagnosticPidExecution
-                    execution =
-                    executor.executeRaw(
-                            target,
-                            request
-                    );
-
-            return execution.getRawResponse();
-        }
+                throws IOException;
     }
 }
