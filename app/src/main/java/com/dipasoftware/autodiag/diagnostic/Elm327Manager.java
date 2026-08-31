@@ -1882,29 +1882,21 @@ public class Elm327Manager {
 
 
     /**
-     * Crea un controllo veicolo utilizzando il percorso
-     * diagnostico read-only esistente.
+     * Crea il controllo VIN reale utilizzando
+     * il DiagnosticPidExecutor catalog-driven condiviso.
      *
-     * @return controllo veicolo.
-     *//*
+     * @return vehicle check.
+     */
     @NonNull
     public DiagnosticRealVehicleCheck
     createRealVehicleCheck() {
 
+        DiagnosticPidExecutor executor =
+                createCatalogDiagnosticPidExecutor();
+
         return new DiagnosticRealVehicleCheck(
                 request -> {
 
-                    DiagnosticPidExecutor executor =
-                            createCatalogDiagnosticPidExecutor();
-
-                    *//*
-                     * Per questa prima prova il VIN OBD-II
-                     * viene inviato tramite il transport
-                     * catalog-driven.
-                     *
-                     * Il risultato raw viene restituito
-                     * direttamente.
-                     *//*
                     DiagnosticTargetDefinition target =
                             new DiagnosticTargetDefinition(
                                     "CAN",
@@ -1915,11 +1907,16 @@ public class Elm327Manager {
                                     500
                             );
 
-                    return executor.executeRaw(
-                            target,
-                            request
-                    );
+                    DiagnosticPidExecutor
+                            .DiagnosticPidExecution
+                            execution =
+                            executor.executeRaw(
+                                    target,
+                                    request
+                            );
+
+                    return execution.getRawResponse();
                 }
         );
-    }*/
+    }
 }

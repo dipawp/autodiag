@@ -379,10 +379,23 @@ public class DiagnosticPidExecutor {
                         normalizedRequest
                 );
 
-        operationPolicy.validate(
-                policyDefinition,
-                normalizedRequest
-        );
+        try {
+
+            operationPolicy.validate(
+                    policyDefinition,
+                    normalizedRequest
+            );
+
+        } catch (
+                IllegalArgumentException exception) {
+
+            throw new IOException(
+                    "Richiesta diagnostica non consentita "
+                            + "dalla read-only policy: "
+                            + normalizedRequest,
+                    exception
+            );
+        }
 
         /*
          * ---------------------------------------------------------

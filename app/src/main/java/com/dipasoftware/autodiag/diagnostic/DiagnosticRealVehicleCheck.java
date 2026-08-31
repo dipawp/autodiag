@@ -21,10 +21,13 @@ import androidx.annotation.NonNull;
  *
  * cioè la richiesta OBD-II del VIN.
  *
+ * La richiesta passa attraverso DiagnosticPidExecutor e quindi
+ * attraverso la ReadOnlyDiagnosticPolicy.
+ *
  * NON esegue:
  *
  * - clear DTC;
- * - reset;
+ * - reset ECU;
  * - coding;
  * - routine;
  * - security access;
@@ -41,10 +44,28 @@ public class DiagnosticRealVehicleCheck {
             "DiagnosticRealVehicleCheck";
 
     /**
-     * Request VIN OBD-II.
+     * Richiesta VIN OBD-II.
      */
     private static final String VIN_REQUEST =
             "0902";
+
+    /**
+     * Target utilizzato per la richiesta OBD-II funzionale.
+     *
+     * 7DF = functional request.
+     * 7E8 = tipica risposta powertrain.
+     */
+    private static final String REQUEST_ID =
+            "7DF";
+
+    private static final String RESPONSE_ID =
+            "7E8";
+
+    private static final int CAN_ID_BITS =
+            11;
+
+    private static final int CAN_BITRATE_KBPS =
+            500;
 
     /**
      * Sender diagnostico.
@@ -62,6 +83,32 @@ public class DiagnosticRealVehicleCheck {
 
         this.commandSender =
                 commandSender;
+    }
+
+
+
+
+    /**
+     * Costruttore basato direttamente sul DiagnosticPidExecutor.
+     *
+     * @param executor executor diagnostico.
+     */
+    public DiagnosticRealVehicleCheck(
+            @NonNull DiagnosticPidExecutor executor) {
+
+        this(
+                request -> {
+
+                    DiagnosticPidExecutionBridge bridge =
+                            new DiagnosticPidExecutionBridge(
+                                    executor
+                            );
+
+                    return bridge.send(
+                            request
+                    );
+                }
+        );
     }
 
     /**
@@ -87,7 +134,7 @@ public class DiagnosticRealVehicleCheck {
 
         Log.d(
                 TAG,
-                "Richiesta diagnostica: "
+                "REQUEST: "
                         + VIN_REQUEST
         );
 
@@ -98,6 +145,11 @@ public class DiagnosticRealVehicleCheck {
 
         if (response == null) {
 
+            Log.e(
+                    TAG,
+                    "Risposta nulla alla richiesta VIN."
+            );
+
             throw new java.io.IOException(
                     "Nessuna risposta alla richiesta VIN."
             );
@@ -105,7 +157,7 @@ public class DiagnosticRealVehicleCheck {
 
         Log.d(
                 TAG,
-                "Risposta raw VIN:"
+                "RESPONSE RAW:"
         );
 
         Log.d(
@@ -114,6 +166,11 @@ public class DiagnosticRealVehicleCheck {
         );
 
         if (response.trim().isEmpty()) {
+
+            Log.e(
+                    TAG,
+                    "Risposta VIN vuota."
+            );
 
             throw new java.io.IOException(
                     "Risposta VIN vuota."
@@ -124,13 +181,16 @@ public class DiagnosticRealVehicleCheck {
 
         try {
 
-            vin =
+            ObdVehicleInformationParser.VehicleInformationResponse
+                    vehicleResponse =
                     new ObdVehicleInformationParser()
                             .parseVin(
                                     response,
                                     VIN_REQUEST
-                            )
-                            .getValue();
+                            );
+
+            vin =
+                    vehicleResponse.getVin();
 
         } catch (
                 RuntimeException exception) {
@@ -149,8 +209,14 @@ public class DiagnosticRealVehicleCheck {
 
         Log.d(
                 TAG,
-                "VIN estratto: "
+                "VIN: "
                         + vin
+        );
+
+        Log.d(
+                TAG,
+                "VIN LENGTH: "
+                        + vin.length()
         );
 
         Log.d(
@@ -166,6 +232,25 @@ public class DiagnosticRealVehicleCheck {
         return new Result(
                 response,
                 vin
+        );
+    }
+
+    /**
+     * Restituisce il target OBD funzionale utilizzato
+     * dal vehicle check.
+     *
+     * @return target.
+     */
+    @NonNull
+    public DiagnosticTargetDefinition getTarget() {
+
+        return new DiagnosticTargetDefinition(
+                "CAN",
+                REQUEST_ID,
+                RESPONSE_ID,
+                "FUNCTIONAL",
+                CAN_ID_BITS,
+                CAN_BITRATE_KBPS
         );
     }
 
@@ -189,7 +274,7 @@ public class DiagnosticRealVehicleCheck {
         /**
          * Costruttore.
          *
-         * @param rawResponse raw.
+         * @param rawResponse risposta raw.
          * @param vin VIN.
          */
         public Result(
@@ -226,9 +311,9 @@ public class DiagnosticRealVehicleCheck {
         }
 
         /**
-         * Verifica risultato.
+         * Verifica che il VIN sia completo.
          *
-         * @return true se VIN valido.
+         * @return true se lungo 17 caratteri.
          */
         public boolean isValid() {
 
@@ -237,7 +322,7 @@ public class DiagnosticRealVehicleCheck {
     }
 
     /**
-     * Interfaccia minima per invio di una richiesta diagnostica.
+     * Interfaccia per l'invio di una richiesta diagnostica.
      */
     public interface DiagnosticCommandSender {
 
@@ -254,5 +339,51 @@ public class DiagnosticRealVehicleCheck {
         String send(
                 @NonNull String request)
                 throws java.io.IOException;
+    }
+
+
+    /**
+     * Bridge interno tra DiagnosticRealVehicleCheck
+     * e DiagnosticPidExecutor.
+     */
+    private static class DiagnosticPidExecutionBridge {
+
+        @NonNull
+        private final DiagnosticPidExecutor executor;
+
+        DiagnosticPidExecutionBridge(
+                @NonNull DiagnosticPidExecutor executor) {
+
+            this.executor =
+                    executor;
+        }
+
+        @NonNull
+        String send(
+                @NonNull String request)
+                throws java.io.IOException {
+
+            DiagnosticRealVehicleCheck temporary =
+                    null;
+
+            DiagnosticTargetDefinition target =
+                    new DiagnosticTargetDefinition(
+                            "CAN",
+                            REQUEST_ID,
+                            RESPONSE_ID,
+                            "FUNCTIONAL",
+                            CAN_ID_BITS,
+                            CAN_BITRATE_KBPS
+                    );
+
+            DiagnosticPidExecutor.DiagnosticPidExecution
+                    execution =
+                    executor.executeRaw(
+                            target,
+                            request
+                    );
+
+            return execution.getRawResponse();
+        }
     }
 }
