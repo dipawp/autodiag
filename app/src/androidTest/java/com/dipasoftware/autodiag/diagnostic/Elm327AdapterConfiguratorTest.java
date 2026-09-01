@@ -437,4 +437,92 @@ public class Elm327AdapterConfiguratorTest {
                 sender.getCommandCount()
         );
     }
+
+
+    @Test
+    public void automaticProtocolDoesNotConfigureCan()
+            throws Exception {
+
+        DiagnosticTargetDefinition target =
+                new DiagnosticTargetDefinition(
+                        "AUTO",
+                        "000",
+                        "000",
+                        "FUNCTIONAL",
+                        11,
+                        0
+                );
+
+        Elm327AdapterConfigurator configurator =
+                new Elm327AdapterConfigurator();
+
+        Elm327CommandPlan plan =
+                configurator.buildCommandPlan(
+                        target
+                );
+
+        assertEquals(
+                2,
+                plan.getCommands().size()
+        );
+
+        assertEquals(
+                "ATE0",
+                plan.getCommands().get(0)
+        );
+
+        assertEquals(
+                "ATH0",
+                plan.getCommands().get(1)
+        );
+    }
+
+
+
+    @Test
+    public void automaticProtocolDoesNotUseCanCommands()
+            throws Exception {
+
+        DiagnosticTargetDefinition target =
+                new DiagnosticTargetDefinition(
+                        "AUTO",
+                        "000",
+                        "000",
+                        "FUNCTIONAL",
+                        11,
+                        0
+                );
+
+        Elm327AdapterConfigurator configurator =
+                new Elm327AdapterConfigurator();
+
+        Elm327CommandPlan plan =
+                configurator.buildCommandPlan(
+                        target
+                );
+
+        for (
+                String command :
+                plan.getCommands()
+        ) {
+
+            assertTrue(
+                    !command.startsWith(
+                            "ATTP"
+                    )
+            );
+
+            assertTrue(
+                    !command.startsWith(
+                            "ATSH"
+                    )
+            );
+
+            assertTrue(
+                    !command.startsWith(
+                            "ATCRA"
+                    )
+            );
+        }
+    }
 }

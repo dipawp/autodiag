@@ -85,11 +85,13 @@ public class Elm327AdapterConfigurator
             @NonNull DiagnosticTargetDefinition target)
             throws IOException {
 
-        if (!target.isCan()) {
+        if (!target.isCan()
+                && !target.isAutomaticProtocol()) {
 
             throw new IOException(
-                    "Il target non è compatibile "
-                            + "con ELM327 CAN."
+                    "Protocollo non supportato dal "
+                            + "configuratore ELM327: "
+                            + target.getProtocol()
             );
         }
 
@@ -152,6 +154,46 @@ public class Elm327AdapterConfigurator
     public Elm327CommandPlan buildCommandPlan(
             @NonNull DiagnosticTargetDefinition target)
             throws IOException {
+
+
+
+        if (target.isAutomaticProtocol()) {
+
+            List<String> commands =
+                    new ArrayList<>();
+
+            /*
+             * Non forziamo alcun protocollo.
+             *
+             * L'ELM327 rimane in AUTO e utilizza
+             * il protocollo che ha già rilevato.
+             *
+             * Non impostiamo:
+             *
+             * ATTP
+             * ATSH
+             * ATCRA
+             */
+
+            commands.add(
+                    "ATE0"
+            );
+
+            commands.add(
+                    "ATH0"
+            );
+
+            return new Elm327CommandPlan(
+                    target,
+                    commands
+            );
+        }
+
+
+
+
+
+
 
         if (!target.isCan()) {
 

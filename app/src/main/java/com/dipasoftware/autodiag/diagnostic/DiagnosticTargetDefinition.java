@@ -404,4 +404,39 @@ public class DiagnosticTargetDefinition {
                 canBitrateKbps +
                 '}';
     }
+
+
+    /**
+     * Indica se il target usa la selezione automatica
+     * del protocollo ELM327.
+     *
+     * @return true se AUTO.
+     */
+    public boolean isAutomaticProtocol() {
+
+        return "AUTO".equalsIgnoreCase(
+                protocol
+        );
+    }
+
+    /**
+     * Crea un target OBD funzionale con protocollo automatico.
+     *
+     * Il target non forza CAN e non imposta header CAN.
+     *
+     * @return target automatico.
+     */
+    @NonNull
+    public static DiagnosticTargetDefinition
+    createAutomaticObdTarget() {
+
+        return new DiagnosticTargetDefinition(
+                "AUTO",
+                "000",
+                "000",
+                "FUNCTIONAL",
+                11,
+                0
+        );
+    }
 }

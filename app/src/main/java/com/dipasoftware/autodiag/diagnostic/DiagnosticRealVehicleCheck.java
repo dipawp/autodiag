@@ -57,7 +57,7 @@ public class DiagnosticRealVehicleCheck {
 
     /**
      * Target OBD funzionale.
-     */
+     *//*
     private static final String REQUEST_ID =
             "7DF";
 
@@ -68,7 +68,12 @@ public class DiagnosticRealVehicleCheck {
             11;
 
     private static final int CAN_BITRATE_KBPS =
-            500;
+            500;*/
+
+
+    private static final String PROTOCOL =
+            "AUTO";
+
 
     /**
      * Sender diagnostico.
@@ -429,20 +434,25 @@ public class DiagnosticRealVehicleCheck {
     }
 
     /**
-     * Restituisce il target OBD funzionale.
+     * Restituisce il target utilizzato per il primo
+     * controllo OBD-II reale.
      *
-     * @return target.
+     * Non forza un protocollo CAN.
+     * L'ELM327 rimane in AUTO e utilizza il protocollo
+     * che ha rilevato dalla vettura.
+     *
+     * @return target OBD automatico.
      */
     @NonNull
     public DiagnosticTargetDefinition getTarget() {
 
         return new DiagnosticTargetDefinition(
-                "CAN",
-                REQUEST_ID,
-                RESPONSE_ID,
+                PROTOCOL,
+                "000",
+                "000",
                 "FUNCTIONAL",
-                CAN_ID_BITS,
-                CAN_BITRATE_KBPS
+                11,
+                0
         );
     }
 

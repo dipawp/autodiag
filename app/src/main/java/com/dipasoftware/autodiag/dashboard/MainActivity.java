@@ -3,6 +3,7 @@ package com.dipasoftware.autodiag.dashboard;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.util.Log;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -18,6 +19,7 @@ import com.dipasoftware.autodiag.connection.BluetoothConnection;
 import com.dipasoftware.autodiag.connection.ConnectionManager;
 import com.dipasoftware.autodiag.databinding.ActivityMainBinding;
 import com.dipasoftware.autodiag.diagnostic.DiagnosticRealConnectionCheck;
+import com.dipasoftware.autodiag.diagnostic.DiagnosticRealVehicleCheck;
 import com.dipasoftware.autodiag.diagnostic.Elm327Manager;
 import com.dipasoftware.autodiag.settings.BluetoothSettingsFragment;
 import com.dipasoftware.autodiag.settings.SettingsFragment;
@@ -587,58 +589,66 @@ public class MainActivity extends AppCompatActivity {
      *
      * Non viene eseguita alcuna richiesta diagnostica alla ECU.
      */
-    private void runElm327ConnectionCheck(
-            @NonNull BluetoothConnection connection) {
+    private void runElm327ConnectionCheck(@NonNull BluetoothConnection connection) {
 
         connectionExecutor.execute(() -> {
+            Elm327Manager manager = new Elm327Manager(connection,getApplicationContext());
 
             try {
 
-                Elm327Manager manager =
-                        new Elm327Manager(
-                                connection
-                        );
-
-                DiagnosticRealConnectionCheck.Result result =
-                        manager.checkRealConnection();
-
-                String identification =
-                        result.getIdentificationResponse();
-
-                String protocol =
-                        result.getProtocolResponse();
+                /*
+                 * ---------------------------------------------------------
+                 * CHECK ADAPTER
+                 * ---------------------------------------------------------
+                 */
+                DiagnosticRealConnectionCheck.Result adapterResult = manager.checkRealConnection();
 
                 runOnUiThread(() -> {
                     String message;
-                    if (result.isCanReady()) {
-                        message = "ELM327 pronto\n" + identification + "\n" + protocol;
+                    if (adapterResult.isCanReady()) {
+                        message = "ELM327 pronto\n" + adapterResult.getIdentificationResponse() + "\n" + adapterResult.getProtocolResponse();
                     } else {
-                        message = "ELM327 collegato\n" + identification + "\n" + protocol;
+                        message = "ELM327 collegato\n" + adapterResult.getIdentificationResponse() + "\n" + adapterResult.getProtocolResponse();
                     }
-                    Toast.makeText(this,message,Toast.LENGTH_LONG).show();
+
+                    Toast.makeText(this, message, Toast.LENGTH_LONG).show();
                 });
 
-            } catch (
-                    IOException exception) {
 
-                runOnUiThread(() ->
-                        Toast.makeText(
-                                this,
-                                "Check ELM327 fallito: "
-                                        + exception.getMessage(),
-                                Toast.LENGTH_LONG
-                        ).show()
-                );
-            } catch (
-                    RuntimeException exception) {
+                /*
+                 * ---------------------------------------------------------
+                 * CHECK VIN
+                 * ---------------------------------------------------------
+                 *
+                 * Eseguiamo il VIN soltanto se il check adapter
+                 * ha prodotto un percorso CAN compatibile.
+                 */
+                if (!adapterResult.isValid()) {
 
-                runOnUiThread(() ->
-                        Toast.makeText(
-                                this,
-                                "Errore durante il check ELM327",
-                                Toast.LENGTH_LONG
-                        ).show()
+                    Log.e(
+                            "MainActivity",
+                            "Adapter check non valido."
+                    );
+
+                    return;
+                }
+
+                DiagnosticRealVehicleCheck vehicleCheck = manager.createRealVehicleCheck(getApplicationContext());
+                Log.d("MainActivity","Avvio lettura VIN reale...");
+                DiagnosticRealVehicleCheck.Result vehicleResult = vehicleCheck.readVin();
+                Log.d("MainActivity","VIN reale ricevuto: " + vehicleResult.getVin());
+
+                if (vehicleResult.getReportFile() != null) {
+                    Log.d("MainActivity","Report VIN salvato in: " + vehicleResult.getReportFile().getAbsolutePath());
+                }
+                runOnUiThread(() -> Toast.makeText(this, "VIN: " + vehicleResult.getVin(), Toast.LENGTH_LONG).show());
+            } catch (IOException exception) {
+                Log.e("MainActivity", "Errore durante il test ELM327/VIN",exception);
+                runOnUiThread(() -> Toast.makeText(this,"Test diagnostico fallito: " + exception.getMessage(),Toast.LENGTH_LONG).show()
                 );
+            } catch (RuntimeException exception) {
+                Log.e("MainActivity","Errore inatteso durante il test diagnostico",exception);
+                runOnUiThread(() -> Toast.makeText(this,"Errore inatteso durante il test diagnostico",Toast.LENGTH_LONG).show());
             }
         });
     }

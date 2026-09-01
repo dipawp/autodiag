@@ -1890,37 +1890,17 @@ public class Elm327Manager {
      * @return vehicle check.
      */
     @NonNull
-    public DiagnosticRealVehicleCheck createRealVehicleCheck(
-            @NonNull android.content.Context context) {
+    public DiagnosticRealVehicleCheck createRealVehicleCheck(@NonNull android.content.Context context) {
 
-        DiagnosticPidExecutor executor =
-                createCatalogDiagnosticPidExecutor();
+        DiagnosticPidExecutor executor = createCatalogDiagnosticPidExecutor();
 
-        DiagnosticLogger logger =
-                new DiagnosticLogger(
-                        context
-                );
+        DiagnosticLogger logger = new DiagnosticLogger(context);
 
         return new DiagnosticRealVehicleCheck(
                 request -> {
-
-                    DiagnosticTargetDefinition target =
-                            new DiagnosticTargetDefinition(
-                                    "CAN",
-                                    "7DF",
-                                    "7E8",
-                                    "FUNCTIONAL",
-                                    11,
-                                    500
-                            );
-
-                    DiagnosticPidExecutor
-                            .DiagnosticPidExecution execution =
-                            executor.executeRaw(
-                                    target,
-                                    request
-                            );
-
+                    DiagnosticTargetDefinition target = new DiagnosticTargetDefinition("CAN","7DF","7E8",
+                                                                           "FUNCTIONAL",11,500);
+                    DiagnosticPidExecutor.DiagnosticPidExecution execution = executor.executeRaw(target,request);
                     return execution.getRawResponse();
                 },
                 logger
