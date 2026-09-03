@@ -88,6 +88,16 @@ public class DiagnosticRealVehicleCheck {
      */
     private final DiagnosticLogger diagnosticLogger;
 
+
+
+    /**
+     * Richiesta bitmap PID 01-20.
+     */
+    private static final String SUPPORTED_PIDS_REQUEST = "0100";
+
+
+
+
     /**
      * Costruttore compatibile con il percorso precedente.
      *
@@ -147,12 +157,6 @@ public class DiagnosticRealVehicleCheck {
                 "INIZIO VEHICLE CHECK"
         );
 
-        appendReportLine(
-                report,
-                "REQUEST: "
-                        + VIN_REQUEST
-        );
-
         Log.d(
                 TAG,
                 "=================================================="
@@ -161,6 +165,154 @@ public class DiagnosticRealVehicleCheck {
         Log.d(
                 TAG,
                 "INIZIO VEHICLE CHECK"
+        );
+
+        /*
+         * ---------------------------------------------------------
+         * CONTROLLO COMUNICAZIONE ECU
+         * ---------------------------------------------------------
+         *
+         * 0100 è una richiesta OBD-II read-only.
+         *
+         * La utilizziamo prima di 0902 per verificare che:
+         *
+         * ELM327 -> protocollo -> ECU -> risposta
+         *
+         * sia operativo.
+         */
+        final String supportedPidsRequest =
+                "0100";
+
+        appendReportLine(
+                report,
+                "REQUEST: "
+                        + supportedPidsRequest
+        );
+
+        Log.d(
+                TAG,
+                "REQUEST: "
+                        + supportedPidsRequest
+        );
+
+        String supportedPidsResponse;
+
+        try {
+
+            supportedPidsResponse =
+                    commandSender.send(
+                            supportedPidsRequest
+                    );
+
+        } catch (
+                IOException exception) {
+
+            appendReportLine(
+                    report,
+                    "ERRORE INVIO 0100: "
+                            + exception.getMessage()
+            );
+
+            appendReportLine(
+                    report,
+                    "FINE VEHICLE CHECK"
+            );
+
+            saveReportSafely(
+                    report
+            );
+
+            Log.e(
+                    TAG,
+                    "Errore durante l'invio di 0100.",
+                    exception
+            );
+
+            throw exception;
+        }
+
+        if (supportedPidsResponse == null) {
+
+            appendReportLine(
+                    report,
+                    "RESPONSE RAW 0100: <null>"
+            );
+
+            appendReportLine(
+                    report,
+                    "ERRORE: nessuna risposta alla richiesta 0100."
+            );
+
+            appendReportLine(
+                    report,
+                    "FINE VEHICLE CHECK"
+            );
+
+            saveReportSafely(
+                    report
+            );
+
+            throw new IOException(
+                    "Nessuna risposta alla richiesta 0100."
+            );
+        }
+
+        appendReportLine(
+                report,
+                "RESPONSE RAW 0100:"
+        );
+
+        appendReportLine(
+                report,
+                supportedPidsResponse
+        );
+
+        Log.d(
+                TAG,
+                "RESPONSE RAW 0100:"
+        );
+
+        Log.d(
+                TAG,
+                supportedPidsResponse
+        );
+
+        if (supportedPidsResponse.trim().isEmpty()) {
+
+            appendReportLine(
+                    report,
+                    "ERRORE: risposta 0100 vuota."
+            );
+
+            appendReportLine(
+                    report,
+                    "FINE VEHICLE CHECK"
+            );
+
+            saveReportSafely(
+                    report
+            );
+
+            throw new IOException(
+                    "Risposta 0100 vuota."
+            );
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * LETTURA VIN
+         * ---------------------------------------------------------
+         */
+
+        appendReportLine(
+                report,
+                ""
+        );
+
+        appendReportLine(
+                report,
+                "REQUEST: "
+                        + VIN_REQUEST
         );
 
         Log.d(
@@ -183,7 +335,7 @@ public class DiagnosticRealVehicleCheck {
 
             appendReportLine(
                     report,
-                    "ERRORE INVIO: "
+                    "ERRORE INVIO 0902: "
                             + exception.getMessage()
             );
 
@@ -196,6 +348,12 @@ public class DiagnosticRealVehicleCheck {
                     report
             );
 
+            Log.e(
+                    TAG,
+                    "Errore durante l'invio di 0902.",
+                    exception
+            );
+
             throw exception;
         }
 
@@ -203,7 +361,7 @@ public class DiagnosticRealVehicleCheck {
 
             appendReportLine(
                     report,
-                    "RESPONSE RAW: <null>"
+                    "RESPONSE RAW 0902: <null>"
             );
 
             appendReportLine(
@@ -227,7 +385,7 @@ public class DiagnosticRealVehicleCheck {
 
         appendReportLine(
                 report,
-                "RESPONSE RAW:"
+                "RESPONSE RAW 0902:"
         );
 
         appendReportLine(
@@ -237,7 +395,7 @@ public class DiagnosticRealVehicleCheck {
 
         Log.d(
                 TAG,
-                "RESPONSE RAW:"
+                "RESPONSE RAW 0902:"
         );
 
         Log.d(
@@ -265,6 +423,12 @@ public class DiagnosticRealVehicleCheck {
                     "Risposta VIN vuota."
             );
         }
+
+        /*
+         * ---------------------------------------------------------
+         * PARSING VIN
+         * ---------------------------------------------------------
+         */
 
         String vin;
 
@@ -311,6 +475,17 @@ public class DiagnosticRealVehicleCheck {
             );
         }
 
+        /*
+         * ---------------------------------------------------------
+         * RISULTATO
+         * ---------------------------------------------------------
+         */
+
+        appendReportLine(
+                report,
+                ""
+        );
+
         appendReportLine(
                 report,
                 "VIN: "
@@ -352,6 +527,11 @@ public class DiagnosticRealVehicleCheck {
 
         Log.d(
                 TAG,
+                "RESULT: VALID"
+        );
+
+        Log.d(
+                TAG,
                 "FINE VEHICLE CHECK"
         );
 
@@ -371,6 +551,8 @@ public class DiagnosticRealVehicleCheck {
                 reportFile
         );
     }
+
+
 
     /**
      * Salva il report tramite DiagnosticLogger.
@@ -575,5 +757,72 @@ public class DiagnosticRealVehicleCheck {
         String send(
                 @NonNull String request)
                 throws IOException;
+    }
+
+
+
+    /**
+     * Esegue una richiesta OBD-II standard 0100.
+     *
+     * 0100 consente di verificare che:
+     *
+     * ELM327 -> CAN -> ECU -> risposta
+     *
+     * sia operativo prima di tentare la lettura VIN.
+     *
+     * @return risposta raw.
+     *
+     * @throws IOException errore comunicazione.
+     */
+    @NonNull
+    public String readSupportedPids()
+            throws IOException {
+
+        Log.d(
+                TAG,
+                "--------------------------------------------------"
+        );
+
+        Log.d(
+                TAG,
+                "INIZIO OBD PID CHECK"
+        );
+
+        Log.d(
+                TAG,
+                "REQUEST: "
+                        + SUPPORTED_PIDS_REQUEST
+        );
+
+        String response =
+                commandSender.send(
+                        SUPPORTED_PIDS_REQUEST
+                );
+
+        if (response == null) {
+
+            throw new IOException(
+                    "Nessuna risposta alla richiesta 0100."
+            );
+        }
+
+        Log.d(
+                TAG,
+                "RESPONSE RAW 0100:"
+        );
+
+        Log.d(
+                TAG,
+                response
+        );
+
+        if (response.trim().isEmpty()) {
+
+            throw new IOException(
+                    "Risposta 0100 vuota."
+            );
+        }
+
+        return response;
     }
 }
