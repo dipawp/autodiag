@@ -1898,7 +1898,7 @@ public class Elm327Manager {
 
         return new DiagnosticRealVehicleCheck(
                 request -> {
-                    DiagnosticTargetDefinition target = new DiagnosticTargetDefinition("CAN","7DF","7E8",
+                    DiagnosticTargetDefinition target = new DiagnosticTargetDefinition("CAN","000","000",
                                                                            "FUNCTIONAL",11,500);
                     DiagnosticPidExecutor.DiagnosticPidExecution execution = executor.executeRaw(target,request);
                     return execution.getRawResponse();
