@@ -633,9 +633,106 @@ public class MainActivity extends AppCompatActivity {
                     return;
                 }
 
-                DiagnosticRealVehicleCheck vehicleCheck = manager.createRealVehicleCheck(getApplicationContext());
+                //DiagnosticRealVehicleCheck vehicleCheck = manager.createRealVehicleCheck(getApplicationContext());
+                /*
+                 * ---------------------------------------------------------
+                 * CHECK VIN
+                 * ---------------------------------------------------------
+                 */
+
+                Log.d(
+                        "MainActivity",
+                        "CHECK ADAPTER COMPLETATO"
+                );
+
+                Log.d(
+                        "MainActivity",
+                        "isValid="
+                                + adapterResult.isValid()
+                );
+
+                Log.d(
+                        "MainActivity",
+                        "isCanReady="
+                                + adapterResult.isCanReady()
+                );
+
+                Log.d(
+                        "MainActivity",
+                        "isKwpFastReady="
+                                + adapterResult.isKwpFastReady()
+                );
+
+                if (!adapterResult.isValid()) {
+
+                    Log.e(
+                            "MainActivity",
+                            "Adapter check non valido: STOP"
+                    );
+
+                    return;
+                }
+
+                Log.d(
+                        "MainActivity",
+                        "CREAZIONE DiagnosticRealVehicleCheck"
+                );
+
+                DiagnosticRealVehicleCheck vehicleCheck =
+                        manager.createRealVehicleCheck(
+                                getApplicationContext()
+                        );
+
+                Log.d(
+                        "MainActivity",
+                        "DiagnosticRealVehicleCheck CREATO"
+                );
+
+                Log.d(
+                        "MainActivity",
+                        "AVVIO readVin()"
+                );
+
+                DiagnosticRealVehicleCheck.Result vehicleResult =
+                        vehicleCheck.readVin();
+
+                Log.d(
+                        "MainActivity",
+                        "readVin() COMPLETATO"
+                );
+
+                Log.d(
+                        "MainActivity",
+                        "VIN="
+                                + vehicleResult.getVin()
+                );
+
+                if (vehicleResult.getReportFile() != null) {
+
+                    Log.d(
+                            "MainActivity",
+                            "REPORT="
+                                    + vehicleResult
+                                    .getReportFile()
+                                    .getAbsolutePath()
+                    );
+                }
+
+                runOnUiThread(() ->
+                        Toast.makeText(
+                                this,
+                                "VIN: "
+                                        + vehicleResult.getVin(),
+                                Toast.LENGTH_LONG
+                        ).show()
+                );
+
+
+
+
+
                 Log.d("MainActivity","Avvio lettura VIN reale...");
-                DiagnosticRealVehicleCheck.Result vehicleResult = vehicleCheck.readVin();
+                /////////////////////////////////////////////////////////DiagnosticRealVehicleCheck.Result vehicleResult = vehicleCheck.readVin();
                 Log.d("MainActivity","VIN reale ricevuto: " + vehicleResult.getVin());
 
                 if (vehicleResult.getReportFile() != null) {

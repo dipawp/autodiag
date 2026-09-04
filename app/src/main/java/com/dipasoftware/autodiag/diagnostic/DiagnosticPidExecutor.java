@@ -1,5 +1,7 @@
 package com.dipasoftware.autodiag.diagnostic;
 
+import android.util.Log;
+
 import androidx.annotation.NonNull;
 
 import com.dipasoftware.autodiag.connection.Connection;
@@ -209,6 +211,9 @@ public class DiagnosticPidExecutor {
          * ---------------------------------------------------------
          */
 
+
+
+
         transport.send(
                 target,
                 request
@@ -403,6 +408,37 @@ public class DiagnosticPidExecutor {
          * ---------------------------------------------------------
          */
 
+
+        Log.d(
+                "DiagnosticPidExecutor",
+                "RAW TARGET protocol="
+                        + target.getProtocol()
+        );
+
+        Log.d(
+                "DiagnosticPidExecutor",
+                "RAW TARGET requestId="
+                        + target.getRequestId()
+        );
+
+        Log.d(
+                "DiagnosticPidExecutor",
+                "RAW TARGET responseId="
+                        + target.getResponseId()
+        );
+
+        Log.d(
+                "DiagnosticPidExecutor",
+                "RAW TARGET addressingMode="
+                        + target.getAddressingMode()
+        );
+
+        Log.d(
+                "DiagnosticPidExecutor",
+                "RAW REQUEST="
+                        + normalizedRequest
+        );
+
         transport.send(
                 target,
                 normalizedRequest
@@ -418,6 +454,13 @@ public class DiagnosticPidExecutor {
                 transport.receive(
                         target
                 );
+
+
+        Log.d(
+                "DiagnosticPidExecutor",
+                "RAW RESPONSE="
+                        + response
+        );
 
         if (response == null) {
 

@@ -218,4 +218,37 @@ public class Elm327ManagerTest {
             return sentCommands;
         }
     }
+    @Test
+    public void executeRealObdRequestUsesDirectObdPath()
+            throws Exception {
+
+        FakeConnection connection =
+                new FakeConnection();
+
+        connection.response =
+                "41 00 BE 3F A8 13\r>";
+
+        Elm327Manager manager =
+                new Elm327Manager(
+                        connection
+                );
+
+        String response =
+                manager.executeRealObdRequest(
+                        "01 00"
+                );
+
+        assertEquals(
+                "41 00 BE 3F A8 13\r>",
+                response
+        );
+
+        assertTrue(
+                connection.lastSentData
+                        .contains(
+                                "0100"
+                        )
+        );
+    }
+
 }

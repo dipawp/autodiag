@@ -1,6 +1,7 @@
 package com.dipasoftware.autodiag.diagnostic;
 
 import android.content.Context;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -592,6 +593,85 @@ public class Elm327Manager {
         }
         return result.toString();
     }
+
+
+    /**
+     * Esegue una richiesta OBD-II raw utilizzando lo stesso percorso
+     * già utilizzato da runObdTest().
+     *
+     * Il protocollo viene lasciato in AUTO tramite ensureInitialized().
+     *
+     * Non viene creato alcun DiagnosticTargetDefinition.
+     *
+     * @param request richiesta OBD-II, ad esempio 0100 o 0902.
+     *
+     * @return risposta raw ELM327.
+     *
+     * @throws IOException errore comunicazione.
+     */
+    @NonNull
+    public String executeObdRequest(
+            @NonNull String request)
+            throws IOException {
+
+        ensureInitialized();
+
+        String normalizedRequest =
+                request
+                        .replace(
+                                " ",
+                                ""
+                        )
+                        .replace(
+                                "\r",
+                                ""
+                        )
+                        .replace(
+                                "\n",
+                                ""
+                        )
+                        .trim()
+                        .toUpperCase(
+                                Locale.US
+                        );
+
+        if (normalizedRequest.isEmpty()) {
+
+            throw new IOException(
+                    "Richiesta OBD-II vuota."
+            );
+        }
+
+        Log.d(
+                "Elm327Manager",
+                "OBD REQUEST="
+                        + normalizedRequest
+        );
+
+        String response =
+                sendCommand(
+                        normalizedRequest
+                );
+
+        Log.d(
+                "Elm327Manager",
+                "OBD RESPONSE="
+                        + formatResponse(
+                        response
+                )
+        );
+
+        return response == null
+                ? ""
+                : response;
+    }
+
+
+
+
+
+
+
     /**
      * Esegue il test dei PID OBD-II standard.
      *
@@ -1889,21 +1969,99 @@ public class Elm327Manager {
      *
      * @return vehicle check.
      */
+/**
+ * Crea il controllo VIN reale utilizzando direttamente
+ * il percorso OBD-II già utilizzato da runObdTest().
+ *
+ * NON crea un DiagnosticPidExecutor catalog-driven.
+ *
+ * NON crea un DiagnosticTargetDefinition.
+ *
+ * NON forza:
+ *
+ * - CAN
+ * - request ID
+ * - response ID
+ * - addressing mode
+ *
+ * Il protocollo viene lasciato all'ELM327 tramite
+ * ensureInitialized(), che utilizza AT SP 0.
+ *
+ * @param context context applicativo.
+ *
+ * @return vehicle check.
+ */
     @NonNull
-    public DiagnosticRealVehicleCheck createRealVehicleCheck(@NonNull android.content.Context context) {
+    public DiagnosticRealVehicleCheck createRealVehicleCheck(
+            @NonNull android.content.Context context) {
 
-        DiagnosticPidExecutor executor = createCatalogDiagnosticPidExecutor();
-
-        DiagnosticLogger logger = new DiagnosticLogger(context);
+        DiagnosticLogger logger =
+                new DiagnosticLogger(
+                        context
+                );
 
         return new DiagnosticRealVehicleCheck(
-                request -> {
-                    DiagnosticTargetDefinition target = new DiagnosticTargetDefinition("CAN","000","000",
-                                                                           "FUNCTIONAL",11,500);
-                    DiagnosticPidExecutor.DiagnosticPidExecution execution = executor.executeRaw(target,request);
-                    return execution.getRawResponse();
-                },
+                request ->
+                        executeRealObdRequest(
+                                request
+                        ),
                 logger
         );
+    }
+
+
+
+
+
+    /**
+     * Esegue una richiesta OBD-II direttamente sul percorso
+     * già utilizzato dai test OBD-II funzionanti.
+     *
+     * @param request richiesta OBD-II.
+     * @return risposta raw.
+     * @throws IOException errore di comunicazione.
+     */
+    @NonNull
+    public String executeRealObdRequest(
+            @NonNull String request)
+            throws IOException {
+
+        ensureInitialized();
+
+        String normalizedRequest =
+                request
+                        .replace(" ", "")
+                        .replace("\r", "")
+                        .replace("\n", "")
+                        .trim()
+                        .toUpperCase(Locale.US);
+
+        if (normalizedRequest.isEmpty()) {
+
+            throw new IOException(
+                    "Richiesta OBD-II vuota."
+            );
+        }
+
+        Log.d(
+                "Elm327Manager",
+                "REAL OBD REQUEST="
+                        + normalizedRequest
+        );
+
+        String response =
+                sendCommand(
+                        normalizedRequest
+                );
+
+        Log.d(
+                "Elm327Manager",
+                "REAL OBD RESPONSE="
+                        + formatResponse(response)
+        );
+
+        return response == null
+                ? ""
+                : response;
     }
 }
