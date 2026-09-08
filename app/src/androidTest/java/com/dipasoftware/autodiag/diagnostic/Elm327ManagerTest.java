@@ -200,11 +200,17 @@ public class Elm327ManagerTest {
                     data
             );
 
-            /*
-             * Ogni comando riceve una risposta propria.
-             */
-            if ("0100\r".equals(
+            String command =
                     data
+                            .replace(
+                                    "\r",
+                                    ""
+                            )
+                            .trim()
+                            .toUpperCase();
+
+            if ("0100".equals(
+                    command
             )) {
 
                 response =
@@ -213,9 +219,16 @@ public class Elm327ManagerTest {
                 return;
             }
 
-            /*
-             * Comandi di inizializzazione ELM327.
-             */
+            if ("ATI".equals(
+                    command
+            )) {
+
+                response =
+                        "ELM327 v1.5\r>";
+
+                return;
+            }
+
             response =
                     "OK\r";
         }
@@ -223,18 +236,13 @@ public class Elm327ManagerTest {
         @Override
         public String receive() {
 
-            if (response != null) {
+            String result =
+                    response;
 
-                String currentResponse =
-                        response;
+            response =
+                    null;
 
-                response =
-                        null;
-
-                return currentResponse;
-            }
-
-            return "OK\r";
+            return result;
         }
 
 
@@ -265,24 +273,13 @@ public class Elm327ManagerTest {
                 );
 
         assertEquals(
-                "OK\r",
+                "41 00 BE 3F A8 13\r>",
                 response
         );
 
-        /*
-         * L'ultima operazione del fake deve essere la richiesta
-         * OBD normalizzata.
-         */
         assertEquals(
                 "0100\r",
                 connection.lastSentData
-        );
-
-        assertTrue(
-                connection.getSentCommands()
-                        .contains(
-                                "0100\r"
-                        )
         );
     }
 

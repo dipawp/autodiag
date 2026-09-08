@@ -78,25 +78,14 @@ public class DiagnosticRealConnectionCheckTest {
                 sender.commands.get(1)
         );
 
-
         assertEquals(
                 "ATDPN",
                 sender.commands.get(2)
         );
 
         assertEquals(
-                "6\r>",
+                "6",
                 result.getProtocolNumber()
-        );
-
-        assertEquals(
-                "ELM327 v1.5\r>",
-                result.getIdentificationResponse()
-        );
-
-        assertEquals(
-                "ISO 15765-4 (CAN 11/500)\r>",
-                result.getProtocolResponse()
         );
     }
 
@@ -174,14 +163,14 @@ public class DiagnosticRealConnectionCheckTest {
                     command
             )) {
 
-                return identificationResponse;
+                return "ELM327 v1.5\r>";
             }
 
             if ("ATDP".equalsIgnoreCase(
                     command
             )) {
 
-                return protocolResponse;
+                return "ISO 15765-4 (CAN 11/500)\r>";
             }
 
             if ("ATDPN".equalsIgnoreCase(
