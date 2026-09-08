@@ -124,7 +124,7 @@ public class Elm327ManagerTest {
         );
 
         assertEquals(
-                "6\r>",
+                "6",
                 result.getProtocolNumber()
         );
     }
@@ -209,16 +209,11 @@ public class Elm327ManagerTest {
                             .trim()
                             .toUpperCase();
 
-            if ("0100".equals(
-                    command
-            )) {
-
-                response =
-                        "41 00 BE 3F A8 13\r>";
-
-                return;
-            }
-
+            /*
+             * ---------------------------------------------------------
+             * ATI
+             * ---------------------------------------------------------
+             */
             if ("ATI".equals(
                     command
             )) {
@@ -229,9 +224,49 @@ public class Elm327ManagerTest {
                 return;
             }
 
+            /*
+             * ---------------------------------------------------------
+             * ATDPN
+             * ---------------------------------------------------------
+             *
+             * Il test di checkRealConnection() ora esegue anche
+             * ATDPN, quindi il fake deve restituire una risposta
+             * coerente con un ELM327 reale.
+             */
+            if ("ATDPN".equals(
+                    command
+            )) {
+
+                response =
+                        "6\r>";
+
+                return;
+            }
+
+            /*
+             * ---------------------------------------------------------
+             * 0100
+             * ---------------------------------------------------------
+             */
+            if ("0100".equals(
+                    command
+            )) {
+
+                response =
+                        "41 00 BE 3F A8 13\r>";
+
+                return;
+            }
+
+            /*
+             * ---------------------------------------------------------
+             * Comandi di inizializzazione ELM327
+             * ---------------------------------------------------------
+             */
             response =
                     "OK\r";
         }
+
 
         @Override
         public String receive() {
