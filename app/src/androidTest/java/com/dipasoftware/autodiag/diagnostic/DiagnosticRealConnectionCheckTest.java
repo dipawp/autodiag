@@ -64,7 +64,7 @@ public class DiagnosticRealConnectionCheckTest {
         );
 
         assertEquals(
-                2,
+                3,
                 sender.commands.size()
         );
 
@@ -76,6 +76,17 @@ public class DiagnosticRealConnectionCheckTest {
         assertEquals(
                 "ATDP",
                 sender.commands.get(1)
+        );
+
+
+        assertEquals(
+                "ATDPN",
+                sender.commands.get(2)
+        );
+
+        assertEquals(
+                "6\r>",
+                result.getProtocolNumber()
         );
 
         assertEquals(
@@ -171,6 +182,13 @@ public class DiagnosticRealConnectionCheckTest {
             )) {
 
                 return protocolResponse;
+            }
+
+            if ("ATDPN".equalsIgnoreCase(
+                    command
+            )) {
+
+                return "6\r>";
             }
 
             return "";

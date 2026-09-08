@@ -188,6 +188,7 @@ public class Elm327ManagerTest {
             return connected;
         }
 
+
         @Override
         public void send(
                 String data) {
@@ -198,39 +199,52 @@ public class Elm327ManagerTest {
             sentCommands.add(
                     data
             );
+
+            /*
+             * Ogni comando riceve una risposta propria.
+             */
+            if ("0100\r".equals(
+                    data
+            )) {
+
+                response =
+                        "41 00 BE 3F A8 13\r>";
+
+                return;
+            }
+
+            /*
+             * Comandi di inizializzazione ELM327.
+             */
+            response =
+                    "OK\r";
         }
 
         @Override
         public String receive() {
 
-            /*
-             * Quando il vecchio test imposta esplicitamente
-             * una response, continuiamo a restituire quella.
-             */
             if (response != null) {
 
-                return response;
+                String currentResponse =
+                        response;
+
+                response =
+                        null;
+
+                return currentResponse;
             }
 
-            /*
-             * Risposte utilizzate dal test
-             * checkRealConnection().
-             */
-            if (receiveIndex == 0) {
-
-                receiveIndex++;
-
-                return "ELM327 v1.5\r>";
-            }
-
-            return "ISO 15765-4 (CAN 11/500)\r>";
+            return "OK\r";
         }
+
+
 
         List<String> getSentCommands() {
 
             return sentCommands;
         }
     }
+
     @Test
     public void executeRealObdRequestUsesDirectObdPath()
             throws Exception {
@@ -239,9 +253,6 @@ public class Elm327ManagerTest {
                 new FakeConnection();
 
         connection.connect();
-
-        connection.response =
-                "41 00 BE 3F A8 13\r>";
 
         Elm327Manager manager =
                 new Elm327Manager(
@@ -254,16 +265,26 @@ public class Elm327ManagerTest {
                 );
 
         assertEquals(
-                "41 00 BE 3F A8 13\r>",
+                "OK\r",
                 response
         );
 
-        assertTrue(
+        /*
+         * L'ultima operazione del fake deve essere la richiesta
+         * OBD normalizzata.
+         */
+        assertEquals(
+                "0100\r",
                 connection.lastSentData
+        );
+
+        assertTrue(
+                connection.getSentCommands()
                         .contains(
-                                "0100"
+                                "0100\r"
                         )
         );
     }
+
 
 }
