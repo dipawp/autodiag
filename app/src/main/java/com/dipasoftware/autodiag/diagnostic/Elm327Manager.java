@@ -268,7 +268,7 @@ public class Elm327Manager {
          * ECHO OFF
          * ---------------------------------------------------------
          */
-        response = sendCommand("AT E0");
+        response = sendCommand("ATE0");
         checkOkResponse("AT E0",response);
         /*
          * ---------------------------------------------------------

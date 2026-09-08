@@ -4,6 +4,7 @@ import android.content.Context;
 
 import androidx.annotation.NonNull;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -24,11 +25,12 @@ import java.util.List;
  * Flusso:
  *
  * 1. apertura contesto discovery;
- * 2. lettura VIN;
- * 3. filtro del catalogo tramite VIN;
- * 4. identificazione ECU;
- * 5. matching ECU;
- * 6. risultato discovery.
+ * 2. tentativo di lettura VIN;
+ * 3. filtro del catalogo tramite VIN, quando disponibile;
+ * 4. fallback alla discovery ECU quando il VIN non è disponibile;
+ * 5. identificazione ECU;
+ * 6. matching ECU;
+ * 7. risultato discovery.
  *
  * VehicleIdentifier ed EcuIdentifier condividono lo stesso
  * DiagnosticPidExecutor e quindi lo stesso DiagnosticTransport.
@@ -139,8 +141,6 @@ public class DiagnosticDiscoveryService {
      * Costruttore compatibile con il percorso precedente che
      * iniettava direttamente EcuIdentifier.
      *
-     * IMPORTANTE:
-     *
      * Viene mantenuto per non rompere codice e test esistenti.
      *
      * @param context context Android.
@@ -183,6 +183,13 @@ public class DiagnosticDiscoveryService {
     /**
      * Esegue la discovery completa.
      *
+     * Se il VIN è disponibile viene utilizzato per restringere
+     * il catalogo.
+     *
+     * Se il VIN non è disponibile, ad esempio perché la vettura
+     * restituisce 7F 09 12 a fronte di 0902, viene utilizzato
+     * il fallback ECU discovery.
+     *
      * @return risultato discovery.
      */
     @NonNull
@@ -217,6 +224,12 @@ public class DiagnosticDiscoveryService {
         } catch (
                 RuntimeException exception) {
 
+            /*
+             * Il VIN non è disponibile.
+             *
+             * Non interrompiamo la discovery:
+             * useremo il fallback ECU.
+             */
             vehicleIdentification =
                     new VehicleIdentification(
                             ""
@@ -271,7 +284,38 @@ public class DiagnosticDiscoveryService {
         }
 
         /*
-         * Nessuna ECU compatibile con il VIN.
+         * ---------------------------------------------------------
+         * FALLBACK ECU DISCOVERY
+         * ---------------------------------------------------------
+         *
+         * Se il VIN non ha prodotto candidate, non usciamo più
+         * immediatamente.
+         *
+         * Cerchiamo nel catalogo le ECU per le quali esiste
+         * almeno una strategia di identificazione.
+         *
+         * In questo modo EcuIdentifier può interrogare:
+         *
+         * 22 F190
+         * 22 F187
+         * 22 F188
+         * ...
+         *
+         * usando il target dichiarato dalla singola ECU.
+         */
+        boolean usingEcuDiscoveryFallback =
+                vehicleCandidates.isEmpty();
+
+        if (usingEcuDiscoveryFallback) {
+
+            vehicleCandidates =
+                    findDiscoveryCandidates(
+                            catalog
+                    );
+        }
+
+        /*
+         * Nessuna ECU interrogabile.
          */
         if (vehicleCandidates.isEmpty()) {
 
@@ -284,11 +328,22 @@ public class DiagnosticDiscoveryService {
         }
 
         /*
-         * Più candidate:
+         * ---------------------------------------------------------
+         * MULTIPLE CANDIDATES
+         * ---------------------------------------------------------
          *
-         * non eseguiamo ancora una scansione indiscriminata.
+         * Caso normale con VIN:
+         *
+         * più candidate -> non scegliamo arbitrariamente.
+         *
+         * Caso fallback ECU:
+         *
+         * possiamo provare le candidate una alla volta perché
+         * questa è precisamente la fase di discovery.
          */
-        if (vehicleCandidates.size() != 1) {
+        if (!usingEcuDiscoveryFallback
+                &&
+                vehicleCandidates.size() != 1) {
 
             return new DiagnosticDiscoveryResult(
                     vehicleIdentification,
@@ -304,6 +359,20 @@ public class DiagnosticDiscoveryService {
          * ---------------------------------------------------------
          */
 
+        if (usingEcuDiscoveryFallback) {
+
+            return discoverEcuWithoutVin(
+                    vehicleIdentification,
+                    vehicleCandidates
+            );
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * IDENTIFICAZIONE ECU CON VIN
+         * ---------------------------------------------------------
+         */
+
         EcuDefinition candidate =
                 vehicleCandidates.get(0);
 
@@ -312,10 +381,8 @@ public class DiagnosticDiscoveryService {
         try {
 
             /*
-             * L'EcuIdentifier appartiene alla stessa sessione
+             * EcuIdentifier appartiene alla stessa sessione
              * utilizzata per il VIN.
-             *
-             * Questo garantisce lo stesso executor/transport.
              */
             ecuIdentification =
                     ecuIdentifier.identify(
@@ -362,6 +429,259 @@ public class DiagnosticDiscoveryService {
                 ecuIdentification,
                 ecuMatchResult
         );
+    }
+
+    /**
+     * Esegue la discovery ECU quando il VIN non è disponibile.
+     *
+     * Ogni ECU del catalogo viene interrogata utilizzando
+     * il proprio target e le proprie identification definitions.
+     *
+     * Il primo risultato che contiene almeno un identificatore
+     * utile viene conservato.
+     *
+     * IMPORTANTE:
+     *
+     * non facciamo una selezione arbitraria:
+     * tutte le candidate provengono dal catalogo.
+     *
+     * @param vehicleIdentification identificazione veicolo,
+     *                              eventualmente priva di VIN.
+     * @param candidates ECU catalogate.
+     *
+     * @return risultato discovery.
+     */
+    @NonNull
+    private DiagnosticDiscoveryResult discoverEcuWithoutVin(
+            @NonNull VehicleIdentification vehicleIdentification,
+            @NonNull List<EcuDefinition> candidates) {
+
+        List<EcuDefinition> successfulCandidates =
+                new ArrayList<>();
+
+        EcuIdentification firstIdentification =
+                null;
+
+        /*
+         * Proviamo le ECU una alla volta.
+         *
+         * L'identificazione è read-only e utilizza esclusivamente
+         * le richieste definite dal catalogo.
+         */
+        for (
+                EcuDefinition candidate :
+                candidates
+        ) {
+
+            try {
+
+                EcuIdentification identification =
+                        ecuIdentifier.identify(
+                                candidate
+                        );
+
+                if (identification == null) {
+
+                    continue;
+                }
+
+                /*
+                 * Consideriamo utile un'identificazione che
+                 * contiene almeno un valore.
+                 */
+                if (!hasUsefulIdentification(
+                        identification
+                )) {
+
+                    continue;
+                }
+
+                successfulCandidates.add(
+                        candidate
+                );
+
+                if (firstIdentification == null) {
+
+                    firstIdentification =
+                            identification;
+                }
+
+            } catch (
+                    RuntimeException exception) {
+
+                /*
+                 * Una ECU non raggiungibile o non supportata
+                 * non deve interrompere la discovery delle altre.
+                 */
+            }
+        }
+
+        /*
+         * Nessuna ECU ha fornito dati identificativi.
+         */
+        if (successfulCandidates.isEmpty()) {
+
+            return new DiagnosticDiscoveryResult(
+                    vehicleIdentification,
+                    candidates,
+                    null,
+                    null
+            );
+        }
+
+        /*
+         * Se abbiamo una sola ECU che ha risposto,
+         * possiamo restituirla come risultato identificato.
+         *
+         * Se più ECU hanno risposto, manteniamo tutte le candidate
+         * e lasciamo il matcher determinare l'eventuale ambiguità.
+         */
+        EcuMatchResult matchResult;
+
+        try {
+
+            matchResult =
+                    ecuCatalogMatcher.match(
+                            firstIdentification,
+                            successfulCandidates
+                    );
+
+        } catch (
+                RuntimeException exception) {
+
+            matchResult =
+                    null;
+        }
+
+        return new DiagnosticDiscoveryResult(
+                vehicleIdentification,
+                successfulCandidates,
+                firstIdentification,
+                matchResult
+        );
+    }
+
+    /**
+     * Seleziona le ECU utilizzabili per la discovery senza VIN.
+     *
+     * Non usiamo un nuovo campo JSON.
+     *
+     * La presenza di identification definitions è già
+     * l'indicazione che il catalogo sa come interrogare
+     * l'ECU per riconoscerla.
+     *
+     * @param catalog catalogo completo.
+     *
+     * @return candidate interrogabili.
+     */
+    @NonNull
+    private List<EcuDefinition> findDiscoveryCandidates(
+            @NonNull List<EcuDefinition> catalog) {
+
+        List<EcuDefinition> candidates =
+                new ArrayList<>();
+
+        for (
+                EcuDefinition ecu :
+                catalog
+        ) {
+
+            /*
+             * Una ECU senza identification definitions
+             * non è utile per questa fase.
+             */
+            if (!ecu.hasIdentificationDefinitions()) {
+
+                continue;
+            }
+
+            /*
+             * Target sempre presente nel modello.
+             *
+             * Non aggiungiamo quindi una configurazione
+             * sintetica qui.
+             */
+            if (ecu.getTarget() == null) {
+
+                continue;
+            }
+
+            candidates.add(
+                    ecu
+            );
+        }
+
+        return candidates;
+    }
+
+    /**
+     * Determina se un'identificazione ECU contiene
+     * almeno un dato utile.
+     *
+     * @param identification identificazione.
+     *
+     * @return true se almeno un identificatore è presente.
+     */
+    private boolean hasUsefulIdentification(
+            @NonNull EcuIdentification identification) {
+
+        /*
+         * Il VIN è il campo più diretto.
+         */
+        if (identification.hasVin()) {
+
+            return !identification
+                    .getVin()
+                    .trim()
+                    .isEmpty();
+        }
+
+        /*
+         * Gli altri identificatori possono essere recuperati
+         * dal catalogo e sono sufficienti per continuare
+         * la fase di matching.
+         */
+        if (identification.getEcuPartNumber() != null
+                &&
+                !identification
+                        .getEcuPartNumber()
+                        .trim()
+                        .isEmpty()) {
+
+            return true;
+        }
+
+        if (identification.getEcuSoftwareNumber() != null
+                &&
+                !identification
+                        .getEcuSoftwareNumber()
+                        .trim()
+                        .isEmpty()) {
+
+            return true;
+        }
+
+        if (identification.getEcuHardwareNumber() != null
+                &&
+                !identification
+                        .getEcuHardwareNumber()
+                        .trim()
+                        .isEmpty()) {
+
+            return true;
+        }
+
+        if (identification.getSupplier() != null
+                &&
+                !identification
+                        .getSupplier()
+                        .trim()
+                        .isEmpty()) {
+
+            return true;
+        }
+
+        return false;
     }
 
     /**

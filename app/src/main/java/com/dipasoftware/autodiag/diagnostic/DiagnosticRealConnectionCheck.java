@@ -199,6 +199,13 @@ public class DiagnosticRealConnectionCheck {
          * ---------------------------------------------------------
          * ATDPN
          * ---------------------------------------------------------
+         *
+         * ATDPN è informativo.
+         *
+         * Alcuni adapter/firmware possono non supportarlo oppure
+         * i test legacy possono non fornire una risposta.
+         *
+         * Quindi la sua assenza NON invalida ATI + ATDP.
          */
 
         Log.d(
@@ -225,16 +232,12 @@ public class DiagnosticRealConnectionCheck {
 
         if (protocolNumber.isEmpty()) {
 
-            Log.e(
+            Log.w(
                     TAG,
-                    "ATDPN ha restituito una risposta vuota."
-            );
-
-            throw new java.io.IOException(
-                    "L'ELM327 non ha restituito "
-                            + "una risposta a ATDPN."
+                    "ATDPN non disponibile; continuo usando ATI + ATDP."
             );
         }
+
 
         /*
          * ---------------------------------------------------------

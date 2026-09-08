@@ -98,7 +98,7 @@ public class Elm327ManagerTest {
         );
 
         assertEquals(
-                2,
+                3,
                 connection.getSentCommands().size()
         );
 
@@ -115,7 +115,20 @@ public class Elm327ManagerTest {
                         .getSentCommands()
                         .get(1)
         );
+
+        assertEquals(
+                "ATDPN\r",
+                connection
+                        .getSentCommands()
+                        .get(2)
+        );
+
+        assertEquals(
+                "6\r>",
+                result.getProtocolNumber()
+        );
     }
+
 
     /**
      * Implementazione fittizia di Connection.
@@ -224,6 +237,8 @@ public class Elm327ManagerTest {
 
         FakeConnection connection =
                 new FakeConnection();
+
+        connection.connect();
 
         connection.response =
                 "41 00 BE 3F A8 13\r>";

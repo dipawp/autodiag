@@ -18,17 +18,25 @@ import java.io.IOException;
  *
  * Esegue il primo controllo diagnostico reale del veicolo.
  *
- * Operazione:
+ * La sequenza di prova è:
  *
- *     09 02
+ *     0100
+ *     0902
  *
- * La richiesta viene eseguita tramite DiagnosticPidExecutor e quindi
- * sottoposta alla ReadOnlyDiagnosticPolicy.
+ * 0100 verifica che il percorso OBD-II verso la ECU sia operativo.
+ *
+ * 0902 richiede il VIN tramite OBD-II Mode 09.
  *
  * Il risultato viene:
  *
  * - scritto nel Logcat;
  * - salvato tramite DiagnosticLogger quando disponibile.
+ *
+ * Una risposta negativa 7F 09 12 viene riconosciuta come:
+ *
+ *     Service Not Supported / Sub-function Not Supported
+ *
+ * e non viene trattata come un errore del parser VIN.
  *
  * NON esegue:
  *
@@ -56,24 +64,27 @@ public class DiagnosticRealVehicleCheck {
             "0902";
 
     /**
-     * Target OBD funzionale.
-     *//*
-    private static final String REQUEST_ID =
-            "7DF";
+     * Richiesta bitmap PID 01-20.
+     */
+    private static final String SUPPORTED_PIDS_REQUEST =
+            "0100";
 
-    private static final String RESPONSE_ID =
-            "7E8";
+    /**
+     * Risposta negativa UDS/diagnostica:
+     *
+     * 7F <service> <NRC>
+     */
+    private static final String VIN_NOT_SUPPORTED_RESPONSE =
+            "7F 09 12";
 
-    private static final int CAN_ID_BITS =
-            11;
-
-    private static final int CAN_BITRATE_KBPS =
-            500;*/
-
-
+    /**
+     * Protocollo nominale del controllo real vehicle.
+     *
+     * Il protocollo viene comunque lasciato all'ELM327
+     * nella modalità configurata dal percorso OBD.
+     */
     private static final String PROTOCOL =
             "AUTO";
-
 
     /**
      * Sender diagnostico.
@@ -87,16 +98,6 @@ public class DiagnosticRealVehicleCheck {
      * Può essere null nel costruttore utilizzato dai test legacy.
      */
     private final DiagnosticLogger diagnosticLogger;
-
-
-
-    /**
-     * Richiesta bitmap PID 01-20.
-     */
-    private static final String SUPPORTED_PIDS_REQUEST = "0100";
-
-
-
 
     /**
      * Costruttore compatibile con il percorso precedente.
@@ -132,13 +133,20 @@ public class DiagnosticRealVehicleCheck {
     }
 
     /**
-     * Esegue la richiesta VIN reale.
+     * Esegue il controllo reale del veicolo.
      *
-     * Il report viene scritto nel file logger anche in caso di errore.
+     * Sequenza:
+     *
+     * 1. 0100
+     * 2. 0902
+     * 3. parsing VIN
+     *
+     * La risposta 7F 09 12 viene riconosciuta e salvata
+     * nel report come VIN non disponibile tramite Mode 09.
      *
      * @return risultato.
      *
-     * @throws IOException errore comunicazione o parsing.
+     * @throws IOException errore comunicazione.
      */
     @NonNull
     public Result readVin()
@@ -172,27 +180,19 @@ public class DiagnosticRealVehicleCheck {
          * CONTROLLO COMUNICAZIONE ECU
          * ---------------------------------------------------------
          *
-         * 0100 è una richiesta OBD-II read-only.
-         *
-         * La utilizziamo prima di 0902 per verificare che:
-         *
-         * ELM327 -> protocollo -> ECU -> risposta
-         *
-         * sia operativo.
+         * Prima di richiedere il VIN verifichiamo che la ECU
+         * risponda a una normale richiesta OBD-II.
          */
-        final String supportedPidsRequest =
-                "0100";
-
         appendReportLine(
                 report,
                 "REQUEST: "
-                        + supportedPidsRequest
+                        + SUPPORTED_PIDS_REQUEST
         );
 
         Log.d(
                 TAG,
                 "REQUEST: "
-                        + supportedPidsRequest
+                        + SUPPORTED_PIDS_REQUEST
         );
 
         String supportedPidsResponse;
@@ -200,8 +200,8 @@ public class DiagnosticRealVehicleCheck {
         try {
 
             supportedPidsResponse =
-                    commandSender.send(
-                            supportedPidsRequest
+                    commandSender.sendCommand(
+                            SUPPORTED_PIDS_REQUEST
                     );
 
         } catch (
@@ -252,6 +252,11 @@ public class DiagnosticRealVehicleCheck {
                     report
             );
 
+            Log.e(
+                    TAG,
+                    "Nessuna risposta alla richiesta 0100."
+            );
+
             throw new IOException(
                     "Nessuna risposta alla richiesta 0100."
             );
@@ -293,6 +298,11 @@ public class DiagnosticRealVehicleCheck {
                     report
             );
 
+            Log.e(
+                    TAG,
+                    "Risposta 0100 vuota."
+            );
+
             throw new IOException(
                     "Risposta 0100 vuota."
             );
@@ -326,7 +336,7 @@ public class DiagnosticRealVehicleCheck {
         try {
 
             response =
-                    commandSender.send(
+                    commandSender.sendCommand(
                             VIN_REQUEST
                     );
 
@@ -378,6 +388,11 @@ public class DiagnosticRealVehicleCheck {
                     report
             );
 
+            Log.e(
+                    TAG,
+                    "Nessuna risposta alla richiesta VIN."
+            );
+
             throw new IOException(
                     "Nessuna risposta alla richiesta VIN."
             );
@@ -419,8 +434,76 @@ public class DiagnosticRealVehicleCheck {
                     report
             );
 
+            Log.e(
+                    TAG,
+                    "Risposta VIN vuota."
+            );
+
             throw new IOException(
                     "Risposta VIN vuota."
+            );
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * RISPOSTA NEGATIVA 7F 09 12
+         * ---------------------------------------------------------
+         *
+         * Non è un problema del parser.
+         *
+         * È una risposta diagnostica valida che indica che
+         * la richiesta 09 02 non è supportata dalla ECU.
+         */
+        if (isVinNotSupportedResponse(
+                response
+        )) {
+
+            appendReportLine(
+                    report,
+                    "VIN NON DISPONIBILE VIA OBD-II MODE 09"
+            );
+
+            appendReportLine(
+                    report,
+                    "NEGATIVE RESPONSE: "
+                            + VIN_NOT_SUPPORTED_RESPONSE
+            );
+
+            appendReportLine(
+                    report,
+                    "NRC: 12 - SUB-FUNCTION NOT SUPPORTED"
+            );
+
+            appendReportLine(
+                    report,
+                    "RESULT: VIN NOT AVAILABLE VIA MODE 09"
+            );
+
+            appendReportLine(
+                    report,
+                    "FINE VEHICLE CHECK"
+            );
+
+            appendReportLine(
+                    report,
+                    "=================================================="
+            );
+
+            Log.w(
+                    TAG,
+                    "La ECU rifiuta 0902: "
+                            + VIN_NOT_SUPPORTED_RESPONSE
+            );
+
+            File reportFile =
+                    saveReportSafely(
+                            report
+                    );
+
+            return new Result(
+                    response,
+                    "",
+                    reportFile
             );
         }
 
@@ -442,6 +525,9 @@ public class DiagnosticRealVehicleCheck {
                                     VIN_REQUEST
                             );
 
+            /*
+             * VehicleInformationResponse espone getVin().
+             */
             vin =
                     vehicleResponse.getVin();
 
@@ -457,6 +543,11 @@ public class DiagnosticRealVehicleCheck {
             appendReportLine(
                     report,
                     "FINE VEHICLE CHECK"
+            );
+
+            appendReportLine(
+                    report,
+                    "=================================================="
             );
 
             saveReportSafely(
@@ -477,7 +568,7 @@ public class DiagnosticRealVehicleCheck {
 
         /*
          * ---------------------------------------------------------
-         * RISULTATO
+         * RISULTATO VALIDO
          * ---------------------------------------------------------
          */
 
@@ -552,7 +643,48 @@ public class DiagnosticRealVehicleCheck {
         );
     }
 
+    /**
+     * Determina se la risposta indica che il servizio 09
+     * e/o la sottofunzione 02 non sono supportati.
+     *
+     * La risposta può contenere:
+     *
+     * 7F 09 12
+     *
+     * con CR/LF e prompt ELM327.
+     *
+     * @param response risposta raw.
+     *
+     * @return true se è 7F 09 12.
+     */
+    private boolean isVinNotSupportedResponse(
+            @NonNull String response) {
 
+        String normalized =
+                response
+                        .replace(
+                                '\r',
+                                ' '
+                        )
+                        .replace(
+                                '\n',
+                                ' '
+                        )
+                        .replace(
+                                '>',
+                                ' '
+                        )
+                        .trim()
+                        .replaceAll(
+                                "\\s+",
+                                " "
+                        )
+                        .toUpperCase();
+
+        return normalized.startsWith(
+                VIN_NOT_SUPPORTED_RESPONSE
+        );
+    }
 
     /**
      * Salva il report tramite DiagnosticLogger.
@@ -616,14 +748,13 @@ public class DiagnosticRealVehicleCheck {
     }
 
     /**
-     * Restituisce il target utilizzato per il primo
-     * controllo OBD-II reale.
+     * Restituisce il target nominale del controllo.
      *
-     * Non forza un protocollo CAN.
-     * L'ELM327 rimane in AUTO e utilizza il protocollo
-     * che ha rilevato dalla vettura.
+     * Il primo vehicle check non utilizza più questo target
+     * per l'invio della richiesta OBD-II: la comunicazione viene
+     * effettuata tramite il percorso OBD diretto.
      *
-     * @return target OBD automatico.
+     * @return target automatico.
      */
     @NonNull
     public DiagnosticTargetDefinition getTarget() {
@@ -664,6 +795,9 @@ public class DiagnosticRealVehicleCheck {
 
         /**
          * VIN.
+         *
+         * Può essere vuoto quando la ECU non supporta
+         * 0902.
          */
         @NonNull
         private final String vin;
@@ -709,7 +843,7 @@ public class DiagnosticRealVehicleCheck {
         /**
          * VIN.
          *
-         * @return VIN.
+         * @return VIN oppure stringa vuota se non disponibile.
          */
         @NonNull
         public String getVin() {
@@ -720,8 +854,7 @@ public class DiagnosticRealVehicleCheck {
         /**
          * File report.
          *
-         * @return file oppure null se il logger non era disponibile
-         *         o il salvataggio è fallito.
+         * @return file oppure null.
          */
         public File getReportFile() {
 
@@ -741,6 +874,10 @@ public class DiagnosticRealVehicleCheck {
 
     /**
      * Interfaccia per l'invio di una richiesta diagnostica.
+     *
+     * NOTA:
+     *
+     * Nel progetto locale utilizziamo sendCommand().
      */
     public interface DiagnosticCommandSender {
 
@@ -754,75 +891,8 @@ public class DiagnosticRealVehicleCheck {
          * @throws IOException errore.
          */
         @NonNull
-        String send(
+        String sendCommand(
                 @NonNull String request)
                 throws IOException;
-    }
-
-
-
-    /**
-     * Esegue una richiesta OBD-II standard 0100.
-     *
-     * 0100 consente di verificare che:
-     *
-     * ELM327 -> CAN -> ECU -> risposta
-     *
-     * sia operativo prima di tentare la lettura VIN.
-     *
-     * @return risposta raw.
-     *
-     * @throws IOException errore comunicazione.
-     */
-    @NonNull
-    public String readSupportedPids()
-            throws IOException {
-
-        Log.d(
-                TAG,
-                "--------------------------------------------------"
-        );
-
-        Log.d(
-                TAG,
-                "INIZIO OBD PID CHECK"
-        );
-
-        Log.d(
-                TAG,
-                "REQUEST: "
-                        + SUPPORTED_PIDS_REQUEST
-        );
-
-        String response =
-                commandSender.send(
-                        SUPPORTED_PIDS_REQUEST
-                );
-
-        if (response == null) {
-
-            throw new IOException(
-                    "Nessuna risposta alla richiesta 0100."
-            );
-        }
-
-        Log.d(
-                TAG,
-                "RESPONSE RAW 0100:"
-        );
-
-        Log.d(
-                TAG,
-                response
-        );
-
-        if (response.trim().isEmpty()) {
-
-            throw new IOException(
-                    "Risposta 0100 vuota."
-            );
-        }
-
-        return response;
     }
 }
