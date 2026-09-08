@@ -149,6 +149,10 @@ public class DiagnosticRealConnectionCheckTest {
         private String protocolResponse =
                 "ISO 15765-4 (CAN 11/500)\r>";
 
+        @NonNull
+        private String protocolNumberResponse =
+                "6\r>";
+
         @Override
         @NonNull
         public String sendCommand(
@@ -163,26 +167,28 @@ public class DiagnosticRealConnectionCheckTest {
                     command
             )) {
 
-                return "ELM327 v1.5\r>";
+                return identificationResponse;
             }
 
             if ("ATDP".equalsIgnoreCase(
                     command
             )) {
 
-                return "ISO 15765-4 (CAN 11/500)\r>";
+                return protocolResponse;
             }
 
             if ("ATDPN".equalsIgnoreCase(
                     command
             )) {
 
-                return "6\r>";
+                return protocolNumberResponse;
             }
 
             return "";
         }
     }
+
+
 
     /**
      * Una risposta ATI non ELM327 non deve essere considerata
