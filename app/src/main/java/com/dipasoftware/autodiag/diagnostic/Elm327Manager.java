@@ -163,38 +163,26 @@ public class Elm327Manager {
                 );
 
         this.diagnosticLogger = new DiagnosticLogger(context);
-
-
         this.diagnosticPidExecutor = new DiagnosticPidExecutor(this.connection);
-
     }
-
 
     /**************************************************************************
      *
      * COSTRUTTORE TEST
      *
      **************************************************************************/
-
     /**
      * Costruttore utilizzato dai test unitari
      * che non richiedono il repository JSON.
      *
      * @param connection connessione ELM327.
      */
-    public Elm327Manager(
-            @NonNull Connection connection) {
-
+    public Elm327Manager(@NonNull Connection connection) {
         this.connection = connection;
-
         this.initialized = false;
-
         this.pidRepository = null;
-
         this.obdResponseParser = new ObdResponseParser();
-
         this.pidFormulaEvaluator = new PidFormulaEvaluator();
-
         this.pidSupportScanner =
                 new PidSupportScanner(new ObdCommandExecutor() {
                             @Override
@@ -211,13 +199,11 @@ public class Elm327Manager {
         this.diagnosticLogger = null;
         this.diagnosticPidExecutor = new DiagnosticPidExecutor(this.connection);
     }
-
     /**************************************************************************
      *
      * INIZIALIZZAZIONE
      *
      **************************************************************************/
-
     /**
      * Inizializza ELM327.
      *
@@ -244,10 +230,8 @@ public class Elm327Manager {
         String response = sendCommand("AT Z");
 
         if (isEmpty(response)) {
-
             throw new IOException("Nessuna risposta da AT Z.");
         }
-
         /*
          * Dopo AT Z l'ELM può impiegare un breve
          * intervallo per completare il reset.
@@ -255,9 +239,7 @@ public class Elm327Manager {
          * Il comando ATI viene utilizzato per
          * identificare nuovamente il dispositivo.
          */
-
         response = sendCommand("ATI");
-
         if (isEmpty(response)) {
             throw new IOException("Nessuna risposta da ATI.");
         }
@@ -394,7 +376,6 @@ public class Elm327Manager {
          * ---------------------------------------------------------
          */
         result.append("Invio: ATI\n");
-
         String response = sendCommand("ATI");
         result.append("RX: " + formatResponse(response) + "\n\n");
         elmVersion = extractElmVersion(response);
@@ -410,7 +391,6 @@ public class Elm327Manager {
          */
         result.append("Invio: AT Z\n");
         response = sendCommand("AT Z");
-
         result.append("RX: " + formatResponse(response) + "\n\n");
 
         if (isEmpty(response)) {
@@ -610,14 +590,10 @@ public class Elm327Manager {
      * @throws IOException errore comunicazione.
      */
     @NonNull
-    public String executeObdRequest(
-            @NonNull String request)
-            throws IOException {
+    public String executeObdRequest(@NonNull String request) throws IOException {
 
         ensureInitialized();
-
-        String normalizedRequest =
-                request
+        String normalizedRequest = request
                         .replace(
                                 " ",
                                 ""
@@ -636,41 +612,13 @@ public class Elm327Manager {
                         );
 
         if (normalizedRequest.isEmpty()) {
-
-            throw new IOException(
-                    "Richiesta OBD-II vuota."
-            );
+            throw new IOException("Richiesta OBD-II vuota.");
         }
-
-        Log.d(
-                "Elm327Manager",
-                "OBD REQUEST="
-                        + normalizedRequest
-        );
-
-        String response =
-                sendCommand(
-                        normalizedRequest
-                );
-
-        Log.d(
-                "Elm327Manager",
-                "OBD RESPONSE="
-                        + formatResponse(
-                        response
-                )
-        );
-
-        return response == null
-                ? ""
-                : response;
+        Log.d("Elm327Manager","OBD REQUEST=" + normalizedRequest);
+        String response = sendCommand(normalizedRequest);
+        Log.d("Elm327Manager","OBD RESPONSE=" + formatResponse(response));
+        return response == null ? "" : response;
     }
-
-
-
-
-
-
 
     /**
      * Esegue il test dei PID OBD-II standard.
@@ -786,76 +734,36 @@ public class Elm327Manager {
      * @throws IOException errore comunicazione.
      */
     @NonNull
-    private PidTestResult appendPidResult(
-            @NonNull StringBuilder result,
-            @NonNull PidDefinition definition)
-            throws IOException {
-
+    private PidTestResult appendPidResult(@NonNull StringBuilder result, @NonNull PidDefinition definition) throws IOException {
         /*
          * ---------------------------------------------------------
          * ESECUZIONE REQUEST
          * ---------------------------------------------------------
          */
-
         DiagnosticPidExecutor.DiagnosticPidExecution execution;
 
         try {
-
-            execution =
-                    diagnosticPidExecutor.execute(
-                            definition
-                    );
-
+            execution = diagnosticPidExecutor.execute(definition);
         } catch (IllegalArgumentException exception) {
-
-            result.append(
-                    "ERRORE REQUEST/PARSING: "
-                            + exception.getMessage()
-                            + "\n\n"
-            );
-
+            result.append("ERRORE REQUEST/PARSING: " + exception.getMessage() + "\n\n");
             return PidTestResult.INVALID_RESPONSE;
-
         } catch (IOException exception) {
-
-            result.append(
-                    "ERRORE COMUNICAZIONE: "
-                            + exception.getMessage()
-                            + "\n\n"
-            );
-
+            result.append("ERRORE COMUNICAZIONE: " + exception.getMessage() + "\n\n");
             return PidTestResult.NO_RESPONSE;
         }
-
         /*
          * ---------------------------------------------------------
          * REQUEST
          * ---------------------------------------------------------
          */
-
-        result.append(
-                "Invio: "
-                        + execution.getRequest()
-                        + "\n"
-        );
-
+        result.append("Invio: " + execution.getRequest() + "\n");
         /*
          * ---------------------------------------------------------
          * RISPOSTA RAW
          * ---------------------------------------------------------
          */
-
-        String response =
-                execution.getRawResponse();
-
-        result.append(
-                "RX: "
-                        + formatResponse(
-                        response
-                )
-                        + "\n"
-        );
-
+        String response = execution.getRawResponse();
+        result.append("RX: " + formatResponse(response) + "\n");
         /*
          * ---------------------------------------------------------
          * ERRORI ELM327
@@ -874,48 +782,24 @@ public class Elm327Manager {
          * non sono errori del parser diagnostico.
          */
 
-        ElmError elmError =
-                detectElmError(
-                        response
-                );
-
+        ElmError elmError = detectElmError(response);
         if (elmError != ElmError.NONE) {
-
-            appendElmError(
-                    result,
-                    elmError,
-                    response
-            );
-
-            result.append(
-                    "\n"
-            );
-
-            if (elmError == ElmError.CAN_ERROR ||
-                    elmError == ElmError.BUS_ERROR ||
-                    elmError == ElmError.UNABLE_TO_CONNECT) {
-
+            appendElmError(result,elmError,response);
+            result.append("\n");
+            if (elmError == ElmError.CAN_ERROR || elmError == ElmError.BUS_ERROR || elmError == ElmError.UNABLE_TO_CONNECT) {
                 return PidTestResult.BUS_ERROR;
             }
-
             return PidTestResult.ELM_ERROR;
         }
-
         /*
          * ---------------------------------------------------------
          * RISPOSTA VUOTA
          * ---------------------------------------------------------
          */
-
         if (isEmpty(response)) {
-
-            result.append(
-                    "STATO: NESSUNA RISPOSTA\n\n"
-            );
-
+            result.append("STATO: NESSUNA RISPOSTA\n\n");
             return PidTestResult.NO_RESPONSE;
         }
-
         /*
          * ---------------------------------------------------------
          * PARSING
@@ -929,57 +813,23 @@ public class Elm327Manager {
          * Se il parser non è riuscito a interpretare la risposta,
          * il risultato può essere null.
          */
-
-        DiagnosticResponseResult diagnosticResponse =
-                execution.getParsedResponse();
+        DiagnosticResponseResult diagnosticResponse = execution.getParsedResponse();
 
         if (diagnosticResponse == null) {
-
-            result.append(
-                    "STATO: RISPOSTA DIAGNOSTICA "
-                            + "NON RICONOSCIUTA\n\n"
-            );
-
+            result.append("STATO: RISPOSTA DIAGNOSTICA " + "NON RICONOSCIUTA\n\n");
             return PidTestResult.INVALID_RESPONSE;
         }
-
         /*
          * ---------------------------------------------------------
          * RISPOSTA NEGATIVA ECU
          * ---------------------------------------------------------
          */
-
         if (diagnosticResponse.isNegative()) {
-
-            result.append(
-                    "STATO: RISPOSTA NEGATIVA ECU\n"
+            result.append("STATO: RISPOSTA NEGATIVA ECU\n");
+            result.append(String.format(Locale.US,"SERVICE: %02X\n",diagnosticResponse.getService()));
+            result.append(String.format(Locale.US,"IDENTIFIER: %04X\n", diagnosticResponse.getIdentifier())
             );
-
-            result.append(
-                    String.format(
-                            Locale.US,
-                            "SERVICE: %02X\n",
-                            diagnosticResponse.getService()
-                    )
-            );
-
-            result.append(
-                    String.format(
-                            Locale.US,
-                            "IDENTIFIER: %04X\n",
-                            diagnosticResponse.getIdentifier()
-                    )
-            );
-
-            result.append(
-                    String.format(
-                            Locale.US,
-                            "NRC: %02X\n\n",
-                            diagnosticResponse
-                                    .getNegativeResponseCode()
-                    )
-            );
-
+            result.append(String.format(Locale.US,"NRC: %02X\n\n",diagnosticResponse.getNegativeResponseCode()));
             return PidTestResult.INVALID_RESPONSE;
         }
 
@@ -988,10 +838,7 @@ public class Elm327Manager {
          * DATA
          * ---------------------------------------------------------
          */
-
-        byte[] data =
-                diagnosticResponse.getData();
-
+        byte[] data = diagnosticResponse.getData();
         /*
          * ---------------------------------------------------------
          * OFFSET DATI
@@ -1003,198 +850,76 @@ public class Elm327Manager {
          * responseDataOffset permette comunque a un dataset
          * di dichiarare un offset aggiuntivo.
          */
-
-        int responseDataOffset =
-                definition.getResponseDataOffset();
-
+        int responseDataOffset = definition.getResponseDataOffset();
         if (responseDataOffset > 0) {
-
-            if (responseDataOffset >=
-                    data.length) {
-
-                result.append(
-                        "ERRORE: responseDataOffset "
-                                + "oltre i dati ricevuti.\n"
-                );
-
+            if (responseDataOffset >= data.length) {
+                result.append("ERRORE: responseDataOffset " + "oltre i dati ricevuti.\n");
                 return PidTestResult.INVALID_RESPONSE;
             }
-
-            byte[] adjustedData =
-                    new byte[
-                            data.length
-                                    - responseDataOffset
-                            ];
-
-            System.arraycopy(
-                    data,
-                    responseDataOffset,
-                    adjustedData,
-                    0,
-                    adjustedData.length
-            );
-
-            data =
-                    adjustedData;
+            byte[] adjustedData = new byte[data.length - responseDataOffset];
+            System.arraycopy(data,responseDataOffset,adjustedData,0,adjustedData.length);
+            data = adjustedData;
         }
-
         /*
          * ---------------------------------------------------------
          * VERIFICA BYTE
          * ---------------------------------------------------------
          */
-
-        if (definition.getBytes() > 0 &&
-                data.length <
-                        definition.getBytes()) {
-
-            result.append(
-                    "ERRORE: dati insufficienti.\n"
-            );
-
-            result.append(
-                    "BYTE ATTESI: "
-                            + definition.getBytes()
-                            + "\n"
-            );
-
-            result.append(
-                    "BYTE RICEVUTI: "
-                            + data.length
-                            + "\n\n"
-            );
-
+        if (definition.getBytes() > 0 && data.length < definition.getBytes()) {
+            result.append("ERRORE: dati insufficienti.\n");
+            result.append("BYTE ATTESI: " + definition.getBytes() + "\n");
+            result.append("BYTE RICEVUTI: " + data.length + "\n\n");
             return PidTestResult.INVALID_RESPONSE;
         }
-
         /*
          * ---------------------------------------------------------
          * INFORMAZIONI RISPOSTA
          * ---------------------------------------------------------
          */
-
-        result.append(
-                "PROTOCOLLO: "
-                        + diagnosticResponse
-                        .getProtocolType()
-                        + "\n"
-        );
-
-        result.append(
-                String.format(
-                        Locale.US,
-                        "SERVICE: %02X\n",
-                        diagnosticResponse
-                                .getService()
-                )
-        );
-
-        result.append(
-                String.format(
-                        Locale.US,
-                        "IDENTIFIER: %04X\n",
-                        diagnosticResponse
-                                .getIdentifier()
-                )
-        );
-
-        result.append(
-                "DATA: "
-                        + bytesToHex(
-                        data
-                )
-                        + "\n"
-        );
-
+        result.append("PROTOCOLLO: " + diagnosticResponse.getProtocolType() + "\n");
+        result.append(String.format(Locale.US, "SERVICE: %02X\n",diagnosticResponse.getService()));
+        result.append(String.format(Locale.US,"IDENTIFIER: %04X\n", diagnosticResponse.getIdentifier()));
+        result.append("DATA: " + bytesToHex(data) + "\n");
         /*
          * ---------------------------------------------------------
          * FORMULA
          * ---------------------------------------------------------
          */
-
-        result.append(
-                "FORMULA JSON: "
-                        + definition.getFormula()
-                        + "\n"
-        );
-
+        result.append("FORMULA JSON: " + definition.getFormula() + "\n");
         /*
          * ---------------------------------------------------------
          * DECODIFICA
          * ---------------------------------------------------------
          */
-
         try {
-
-            double value =
-                    pidFormulaEvaluator.evaluate(
-                            definition,
-                            data
-                    );
-
-            result.append(
-                    definition.getNameKey()
-                            + ": "
-                            + formatValue(
-                            value
-                    )
-            );
-
-            if (!definition.getUnit()
-                    .isEmpty()) {
-
-                result.append(
-                        " "
-                                + definition.getUnit()
-                );
+            double value = pidFormulaEvaluator.evaluate(definition,data);
+            result.append(definition.getNameKey() + ": " + formatValue(value));
+            if (!definition.getUnit().isEmpty()) {
+                result.append(" " + definition.getUnit());
             }
-
-            result.append(
-                    "\n\n"
-            );
-
+            result.append("\n\n");
             return PidTestResult.OK;
-
-        } catch (
-                IllegalArgumentException exception) {
-
-            result.append(
-                    "ERRORE DECODIFICA: "
-                            + exception.getMessage()
-                            + "\n\n"
-            );
-
+        } catch (IllegalArgumentException exception) {
+            result.append("ERRORE DECODIFICA: " + exception.getMessage() + "\n\n");
             return PidTestResult.INVALID_RESPONSE;
         }
     }
-
-
-
     /**************************************************************************
      *
      * ELM ERROR
      *
      **************************************************************************/
-
     /**
      * Tipi di errore generati dall'ELM327.
      */
     private enum ElmError {
-
         NONE,
-
         CAN_ERROR,
-
         BUS_ERROR,
-
         UNABLE_TO_CONNECT,
-
         NO_DATA,
-
         SEARCHING,
-
         BUFFER_FULL,
-
         ERROR
     }
 
@@ -1203,19 +928,12 @@ public class Elm327Manager {
      * Risultato elaborazione PID.
      */
     private enum PidTestResult {
-
         OK,
-
         NO_RESPONSE,
-
         INVALID_RESPONSE,
-
         ELM_ERROR,
-
         BUS_ERROR
     }
-
-
     /**
      * Rileva errori ELM327.
      *
@@ -1224,105 +942,71 @@ public class Elm327Manager {
      * @return tipo errore.
      */
     @NonNull
-    private ElmError detectElmError(
-            String response) {
-
+    private ElmError detectElmError(String response) {
         if (response == null) {
-
             return ElmError.NONE;
         }
-
-        String normalized =
-                response
+        String normalized = response
                         .replace("\r", " ")
                         .replace("\n", " ")
                         .replace(">", " ")
                         .trim()
-                        .toUpperCase(
-                                Locale.US
-                        );
+                        .toUpperCase(Locale.US);
 
         if (normalized.isEmpty()) {
-
             return ElmError.NONE;
         }
-
         /*
          * CAN ERROR
          *
          * È esattamente il caso che stai
          * ricevendo in macchina.
          */
-
         if (normalized.contains("CAN ERROR")) {
-
             return ElmError.CAN_ERROR;
         }
-
         /*
          * BUS ERROR
          */
-
         if (normalized.contains("BUS ERROR")) {
-
             return ElmError.BUS_ERROR;
         }
 
         /*
          * UNABLE TO CONNECT
          */
-
-        if (normalized.contains(
-                "UNABLE TO CONNECT")) {
-
+        if (normalized.contains("UNABLE TO CONNECT")) {
             return ElmError.UNABLE_TO_CONNECT;
         }
-
         /*
          * NO DATA
          */
-
         if (normalized.contains("NO DATA")) {
-
             return ElmError.NO_DATA;
         }
-
         /*
          * SEARCHING
          */
-
         if (normalized.contains("SEARCHING")) {
-
             return ElmError.SEARCHING;
         }
-
         /*
          * BUFFER FULL
          */
-
-        if (normalized.contains(
-                "BUFFER FULL")) {
-
+        if (normalized.contains("BUFFER FULL")) {
             return ElmError.BUFFER_FULL;
         }
-
         /*
          * ERROR generico.
          *
          * Evitiamo di considerare "CAN ERROR"
          * qui perché è già stato intercettato sopra.
          */
-
-        if (normalized.equals("ERROR") ||
-                normalized.contains(" ERROR ")) {
-
+        if (normalized.equals("ERROR") || normalized.contains(" ERROR ")) {
             return ElmError.ERROR;
         }
-
         return ElmError.NONE;
     }
-
-
     /**
      * Aggiunge al risultato la descrizione
      * dell'errore ELM327.
@@ -1331,129 +1015,47 @@ public class Elm327Manager {
      * @param error errore.
      * @param response risposta originale.
      */
-    private void appendElmError(
-            @NonNull StringBuilder result,
-            @NonNull ElmError error,
-            String response) {
-
+    private void appendElmError(@NonNull StringBuilder result,@NonNull ElmError error,String response) {
         switch (error) {
-
             case CAN_ERROR:
-
-                result.append(
-                        "STATO: ERRORE BUS CAN\n"
-                );
-
-                result.append(
-                        "ERRORE ELM327: CAN ERROR\n"
-                );
-
-                result.append(
-                        "L'ELM327 non sta riuscendo "
-                                + "a comunicare correttamente "
-                                + "sul bus CAN.\n"
-                );
-
-                result.append(
-                        "Il problema NON è la formula "
-                                + "del PID e NON è il parser.\n"
-                );
-
-                result.append(
-                        "Verificare protocollo, connessione "
-                                + "CAN, alimentazione e compatibilità "
-                                + "dell'adattatore.\n"
-                );
-
+                result.append("STATO: ERRORE BUS CAN\n");
+                result.append("ERRORE ELM327: CAN ERROR\n");
+                result.append("L'ELM327 non sta riuscendo " + "a comunicare correttamente " + "sul bus CAN.\n");
+                result.append("Il problema NON è la formula " + "del PID e NON è il parser.\n");
+                result.append("Verificare protocollo, connessione " + "CAN, alimentazione e compatibilità " + "dell'adattatore.\n");
                 break;
-
-
             case BUS_ERROR:
-
-                result.append(
-                        "STATO: ERRORE BUS\n"
-                );
-
-                result.append(
-                        "ERRORE ELM327: BUS ERROR\n"
-                );
-
+                result.append("STATO: ERRORE BUS\n");
+                result.append("ERRORE ELM327: BUS ERROR\n");
                 break;
-
-
             case UNABLE_TO_CONNECT:
-
-                result.append(
-                        "STATO: ELM327 NON RIESCE "
-                                + "A CONNETTERSI AL BUS\n"
-                );
-
+                result.append("STATO: ELM327 NON RIESCE " + "A CONNETTERSI AL BUS\n");
                 break;
-
-
             case NO_DATA:
-
-                result.append(
-                        "STATO: NESSUN DATO DALLA ECU\n"
-                );
-
+                result.append("STATO: NESSUN DATO DALLA ECU\n");
                 break;
-
-
             case SEARCHING:
-
-                result.append(
-                        "STATO: ELM327 STA CERCANDO "
-                                + "IL PROTOCOLLO/ECU\n"
-                );
-
+                result.append("STATO: ELM327 STA CERCANDO " + "IL PROTOCOLLO/ECU\n");
                 break;
-
-
             case BUFFER_FULL:
-
-                result.append(
-                        "STATO: BUFFER ELM327 PIENO\n"
-                );
-
+                result.append("STATO: BUFFER ELM327 PIENO\n");
                 break;
-
-
             case ERROR:
-
-                result.append(
-                        "STATO: ERRORE ELM327\n"
-                );
-
+                result.append("STATO: ERRORE ELM327\n");
                 break;
-
-
             default:
-
-                result.append(
-                        "STATO: ERRORE ELM327\n"
-                );
-
+                result.append("STATO: ERRORE ELM327\n");
                 break;
         }
-
         if (response != null) {
-
-            result.append(
-                    "RISPOSTA ELM327: "
-                            + formatResponse(response)
-                            + "\n"
-            );
+            result.append("RISPOSTA ELM327: " + formatResponse(response) + "\n");
         }
     }
-
-
     /**************************************************************************
      *
      * SEND COMMAND
      *
      **************************************************************************/
-
     /**
      * Invia comando all'ELM327.
      *
@@ -1466,32 +1068,19 @@ public class Elm327Manager {
      * @throws IOException errore comunicazione.
      */
     @NonNull
-    public String sendCommand(
-            @NonNull String command)
-            throws IOException {
-
-        connection.send(
-                command + "\r"
-        );
-
-        String response =
-                connection.receive();
-
+    public String sendCommand(@NonNull String command) throws IOException {
+        connection.send(command + "\r");
+        String response = connection.receive();
         if (response == null) {
-
             return "";
         }
-
         return response;
     }
-
-
     /**************************************************************************
      *
      * OK
      *
      **************************************************************************/
-
     /**
      * Verifica risposta OK.
      *
@@ -1500,23 +1089,11 @@ public class Elm327Manager {
      *
      * @throws IOException risposta non OK.
      */
-    private void checkOkResponse(
-            @NonNull String command,
-            String response)
-            throws IOException {
-
+    private void checkOkResponse(@NonNull String command, String response) throws IOException {
         if (!isOkResponse(response)) {
-
-            throw new IOException(
-                    "Risposta inattesa da "
-                            + command
-                            + ": "
-                            + formatResponse(response)
-            );
+            throw new IOException("Risposta inattesa da " + command + ": " + formatResponse(response));
         }
     }
-
-
     /**
      * Verifica risposta OK.
      *
@@ -1524,29 +1101,17 @@ public class Elm327Manager {
      *
      * @return true se OK.
      */
-    private boolean isOkResponse(
-            String response) {
-
+    private boolean isOkResponse(String response) {
         if (response == null) {
-
             return false;
         }
-
-        return response
-                .trim()
-                .toUpperCase(
-                        Locale.US
-                )
-                .contains("OK");
+        return response.trim().toUpperCase(Locale.US).contains("OK");
     }
-
-
     /**************************************************************************
      *
      * VERSIONE
      *
      **************************************************************************/
-
     /**
      * Estrae la versione ELM327.
      *
@@ -1560,13 +1125,10 @@ public class Elm327Manager {
             return null;
         }
         String cleaned = response.replace("\r", "\n").replace(">", "").trim();
-
         if (cleaned.isEmpty()) {
             return null;
         }
-
         String[] lines = cleaned.split("\\n");
-
         for (String line : lines) {
             String current = line.trim();
             if (current.isEmpty()) {
@@ -1581,14 +1143,11 @@ public class Elm327Manager {
         }
         return cleaned;
     }
-
-
     /**************************************************************************
      *
      * UTILITÀ
      *
      **************************************************************************/
-
     /**
      * Verifica risposta vuota.
      *
@@ -1599,8 +1158,6 @@ public class Elm327Manager {
     private boolean isEmpty(String response) {
         return response == null || response.trim().isEmpty();
     }
-
-
     /**
      * Formatta risposta ELM327.
      *
@@ -1615,8 +1172,6 @@ public class Elm327Manager {
         }
         return response.replace("\r", "\\r").replace("\n", "\\n");
     }
-
-
     /**
      * Formatta byte HEX.
      *
@@ -1628,8 +1183,6 @@ public class Elm327Manager {
     private String formatHex(int value) {
         return String.format(Locale.US,"%02X",value & 0xFF);
     }
-
-
     /**
      * Formatta valore PID.
      *
@@ -1644,9 +1197,6 @@ public class Elm327Manager {
         }
         return String.format(Locale.US, "%.2f", value);
     }
-
-
-
     /**
      * Converte un array di byte in una stringa HEX
      * separata da spazi.
@@ -1656,45 +1206,24 @@ public class Elm327Manager {
      * @return rappresentazione HEX.
      */
     @NonNull
-    private String bytesToHex(
-            @NonNull byte[] data) {
-
+    private String bytesToHex(@NonNull byte[] data) {
         if (data.length == 0) {
-
             return "";
         }
-
-        StringBuilder result =
-                new StringBuilder();
-
-        for (int index = 0;
-             index < data.length;
-             index++) {
-
+        StringBuilder result = new StringBuilder();
+        for (int index = 0; index < data.length; index++) {
             if (index > 0) {
-
                 result.append(" ");
             }
-
-            result.append(
-                    String.format(
-                            Locale.US,
-                            "%02X",
-                            data[index] & 0xFF
-                    )
-            );
+            result.append(String.format(Locale.US,"%02X",data[index] & 0xFF));
         }
-
         return result.toString();
     }
-
-
     /**************************************************************************
      *
      * GETTER
      *
      **************************************************************************/
-
     /**
      * Restituisce versione ELM327.
      *
@@ -1704,8 +1233,6 @@ public class Elm327Manager {
     public String getElmVersion() {
         return elmVersion;
     }
-
-
     /**
      * Restituisce stato inizializzazione.
      *
@@ -1714,8 +1241,6 @@ public class Elm327Manager {
     public boolean isInitialized() {
         return initialized;
     }
-
-
     /**
      * Assicura che l'ELM327 sia inizializzato.
      *
@@ -1733,15 +1258,12 @@ public class Elm327Manager {
         }
         initialize();
     }
-
-
     /**
      * Salva il log diagnostico se il logger è disponibile.
      *
      * @param result contenuto del log.
      */
     private void saveDiagnosticLog(@NonNull StringBuilder result) {
-
         if (diagnosticLogger == null) {
             return;
         }
@@ -1751,21 +1273,14 @@ public class Elm327Manager {
             result.append("\nERRORE SALVATAGGIO LOG: " + exception.getMessage() + "\n");
         }
     }
-
-
-
     private boolean executeOptionalAtCommand(@NonNull StringBuilder result, @NonNull String command) throws IOException {
-
         result.append("Invio: " + command + "\n");
         String response = sendCommand(command);
         result.append("RX: " + formatResponse(response) + "\n\n");
-
         if (isOkResponse(response)) {
             return true;
         }
-
-        String normalized =
-                response == null
+        String normalized = response == null
                         ? ""
                         : response
                         .replace("\r", "")
@@ -1778,12 +1293,9 @@ public class Elm327Manager {
             result.append("AVVISO: comando " + command + " non supportato " + "dal firmware ELM327.\n\n");
             return true;
         }
-
         result.append("ERRORE: risposta inattesa da " + command + ".\n");
         return false;
     }
-
-
     /**
      * Crea il transport diagnostico catalog-driven.
      *
@@ -1811,33 +1323,12 @@ public class Elm327Manager {
      */
     @NonNull
     public DiagnosticTransport createDiagnosticTransport() {
-
-        Elm327ManagerCommandSender commandSender =
-                new Elm327ManagerCommandSender(
-                        this
-                );
-
-        Elm327CommandExecutor commandExecutor =
-                new Elm327CommandExecutor(
-                        commandSender
-                );
-
-        Elm327ConfigurationExecutor configurationExecutor =
-                new Elm327ConfigurationExecutor(
-                        commandExecutor
-                );
-
-        Elm327AdapterConfigurator adapterConfigurator =
-                new Elm327AdapterConfigurator();
-
-        return new Elm327DiagnosticTransport(
-                connection,
-                adapterConfigurator,
-                configurationExecutor
-        );
+        Elm327ManagerCommandSender commandSender = new Elm327ManagerCommandSender(this);
+        Elm327CommandExecutor commandExecutor = new Elm327CommandExecutor(commandSender);
+        Elm327ConfigurationExecutor configurationExecutor = new Elm327ConfigurationExecutor(commandExecutor);
+        Elm327AdapterConfigurator adapterConfigurator = new Elm327AdapterConfigurator();
+        return new Elm327DiagnosticTransport(connection,adapterConfigurator,configurationExecutor);
     }
-
-
     /**
      * Restituisce il DiagnosticPidExecutor del percorso
      * catalog-driven.
@@ -1860,47 +1351,17 @@ public class Elm327Manager {
      * @return executor catalog-driven condiviso.
      */
     @NonNull
-    public synchronized DiagnosticPidExecutor
-    createCatalogDiagnosticPidExecutor() {
-
+    public synchronized DiagnosticPidExecutor createCatalogDiagnosticPidExecutor() {
         if (catalogDiagnosticPidExecutor == null) {
-
-            Elm327ManagerCommandSender commandSender =
-                    new Elm327ManagerCommandSender(
-                            this
-                    );
-
-            Elm327CommandExecutor commandExecutor =
-                    new Elm327CommandExecutor(
-                            commandSender
-                    );
-
-            Elm327ConfigurationExecutor configurationExecutor =
-                    new Elm327ConfigurationExecutor(
-                            commandExecutor
-                    );
-
-            Elm327AdapterConfigurator adapterConfigurator =
-                    new Elm327AdapterConfigurator();
-
-            DiagnosticTransport transport =
-                    new Elm327DiagnosticTransport(
-                            connection,
-                            adapterConfigurator,
-                            configurationExecutor
-                    );
-
-            catalogDiagnosticPidExecutor =
-                    new DiagnosticPidExecutor(
-                            transport,
-                            new ReadOnlyDiagnosticPolicy()
-                    );
+            Elm327ManagerCommandSender commandSender = new Elm327ManagerCommandSender(this);
+            Elm327CommandExecutor commandExecutor = new Elm327CommandExecutor(commandSender);
+            Elm327ConfigurationExecutor configurationExecutor = new Elm327ConfigurationExecutor(commandExecutor);
+            Elm327AdapterConfigurator adapterConfigurator = new Elm327AdapterConfigurator();
+            DiagnosticTransport transport = new Elm327DiagnosticTransport(connection,adapterConfigurator,configurationExecutor);
+            catalogDiagnosticPidExecutor = new DiagnosticPidExecutor(transport,new ReadOnlyDiagnosticPolicy());
         }
-
         return catalogDiagnosticPidExecutor;
     }
-
-
     /**
      * Crea un EcuIdentifier utilizzando lo stesso
      * DiagnosticPidExecutor catalog-driven del manager.
@@ -1911,13 +1372,10 @@ public class Elm327Manager {
      */
     @NonNull
     public EcuIdentifier createCatalogEcuIdentifier() {
-
         return new EcuIdentifier(
                 createCatalogDiagnosticPidExecutor()
         );
     }
-
-
     /**
      * Crea il controllo della connessione reale ELM327.
      *
@@ -1927,17 +1385,9 @@ public class Elm327Manager {
      * @return controllo connessione ELM327.
      */
     @NonNull
-    public DiagnosticRealConnectionCheck
-    createRealConnectionCheck() {
-
-        return new DiagnosticRealConnectionCheck(
-                new Elm327ManagerCommandSender(
-                        this
-                )
-        );
+    public DiagnosticRealConnectionCheck createRealConnectionCheck() {
+        return new DiagnosticRealConnectionCheck(new Elm327ManagerCommandSender(this));
     }
-
-
     /**
      * Esegue il controllo base dell'adapter ELM327.
      *
@@ -1952,15 +1402,9 @@ public class Elm327Manager {
      * @throws IOException errore di comunicazione.
      */
     @NonNull
-    public DiagnosticRealConnectionCheck.Result
-    checkRealConnection()
-            throws IOException {
-
-        return createRealConnectionCheck()
-                .check();
+    public DiagnosticRealConnectionCheck.Result checkRealConnection() throws IOException {
+        return createRealConnectionCheck().check();
     }
-
-
     /**
      * Crea il controllo VIN reale utilizzando il logger diagnostico
      * dell'applicazione.
@@ -1992,27 +1436,10 @@ public class Elm327Manager {
  * @return vehicle check.
  */
     @NonNull
-    public DiagnosticRealVehicleCheck createRealVehicleCheck(
-            @NonNull android.content.Context context) {
-
-        DiagnosticLogger logger =
-                new DiagnosticLogger(
-                        context
-                );
-
-        return new DiagnosticRealVehicleCheck(
-                request ->
-                        executeRealObdRequest(
-                                request
-                        ),
-                logger
-        );
+    public DiagnosticRealVehicleCheck createRealVehicleCheck(@NonNull android.content.Context context) {
+        DiagnosticLogger logger = new DiagnosticLogger(context);
+        return new DiagnosticRealVehicleCheck(request -> executeRealObdRequest(request),logger);
     }
-
-
-
-
-
     /**
      * Esegue una richiesta OBD-II direttamente sul percorso
      * già utilizzato dai test OBD-II funzionanti.
@@ -2022,46 +1449,20 @@ public class Elm327Manager {
      * @throws IOException errore di comunicazione.
      */
     @NonNull
-    public String executeRealObdRequest(
-            @NonNull String request)
-            throws IOException {
-
+    public String executeRealObdRequest(@NonNull String request) throws IOException {
         ensureInitialized();
-
-        String normalizedRequest =
-                request
+        String normalizedRequest = request
                         .replace(" ", "")
                         .replace("\r", "")
                         .replace("\n", "")
                         .trim()
                         .toUpperCase(Locale.US);
-
         if (normalizedRequest.isEmpty()) {
-
-            throw new IOException(
-                    "Richiesta OBD-II vuota."
-            );
+            throw new IOException("Richiesta OBD-II vuota.");
         }
-
-        Log.d(
-                "Elm327Manager",
-                "REAL OBD REQUEST="
-                        + normalizedRequest
-        );
-
-        String response =
-                sendCommand(
-                        normalizedRequest
-                );
-
-        Log.d(
-                "Elm327Manager",
-                "REAL OBD RESPONSE="
-                        + formatResponse(response)
-        );
-
-        return response == null
-                ? ""
-                : response;
+        Log.d("Elm327Manager","REAL OBD REQUEST=" + normalizedRequest);
+        String response = sendCommand(normalizedRequest);
+        Log.d("Elm327Manager","REAL OBD RESPONSE=" + formatResponse(response));
+        return response == null ? "" : response;
     }
 }
