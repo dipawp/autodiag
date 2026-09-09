@@ -3,6 +3,7 @@ package com.dipasoftware.autodiag.diagnostic;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -21,8 +22,15 @@ import java.util.List;
  *
  * - identificazione veicolo;
  * - ECU candidate ottenute dal catalogo tramite VIN;
- * - identificazione ECU effettivamente raccolta;
- * - risultato finale del matching ECU.
+ * - identificazioni ECU effettivamente raccolte;
+ * - risultato del matching ECU;
+ * - observations indipendenti per la discovery multi-ECU.
+ *
+ * La vecchia identificazione singola viene mantenuta per compatibilità
+ * con il codice esistente.
+ *
+ * La nuova lista ecuObservations rappresenta invece il risultato completo
+ * della discovery multi-ECU.
  *
  * ****************************************************************************
  */
@@ -41,23 +49,35 @@ public class DiagnosticDiscoveryResult {
     private final List<EcuDefinition> vehicleCandidates;
 
     /**
-     * Identificazione letta dalla ECU.
+     * Identificazione principale della ECU.
      *
-     * Può essere null quando nessuna ECU è stata interrogata.
+     * Mantiene la compatibilità con il modello precedente.
      */
     @Nullable
     private final EcuIdentification ecuIdentification;
 
     /**
-     * Risultato del matching ECU.
+     * Risultato principale del matching ECU.
      *
-     * Può essere null quando nessuna ECU è stata interrogata.
+     * Mantiene la compatibilità con il modello precedente.
      */
     @Nullable
     private final EcuMatchResult ecuMatchResult;
 
     /**
-     * Costruttore.
+     * Observation indipendenti ottenute durante la discovery ECU.
+     *
+     * Ogni elemento mantiene la relazione:
+     *
+     * candidate -> identification -> match
+     */
+    @NonNull
+    private final List<EcuDiscoveryObservation> ecuObservations;
+
+    /**
+     * Costruttore compatibile con il modello precedente.
+     *
+     * Crea un risultato senza observations esplicite.
      *
      * @param vehicleIdentification identificazione veicolo.
      * @param vehicleCandidates candidate veicolo.
@@ -70,12 +90,39 @@ public class DiagnosticDiscoveryResult {
             @Nullable EcuIdentification ecuIdentification,
             @Nullable EcuMatchResult ecuMatchResult) {
 
+        this(
+                vehicleIdentification,
+                vehicleCandidates,
+                ecuIdentification,
+                ecuMatchResult,
+                Collections.emptyList()
+        );
+    }
+
+    /**
+     * Costruttore completo.
+     *
+     * @param vehicleIdentification identificazione veicolo.
+     * @param vehicleCandidates candidate veicolo.
+     * @param ecuIdentification identificazione principale ECU.
+     * @param ecuMatchResult risultato principale matching ECU.
+     * @param ecuObservations observations multi-ECU.
+     */
+    public DiagnosticDiscoveryResult(
+            @NonNull VehicleIdentification vehicleIdentification,
+            @NonNull List<EcuDefinition> vehicleCandidates,
+            @Nullable EcuIdentification ecuIdentification,
+            @Nullable EcuMatchResult ecuMatchResult,
+            @NonNull List<EcuDiscoveryObservation> ecuObservations) {
+
         this.vehicleIdentification =
                 vehicleIdentification;
 
         this.vehicleCandidates =
                 Collections.unmodifiableList(
-                        vehicleCandidates
+                        new ArrayList<>(
+                                vehicleCandidates
+                        )
                 );
 
         this.ecuIdentification =
@@ -83,6 +130,13 @@ public class DiagnosticDiscoveryResult {
 
         this.ecuMatchResult =
                 ecuMatchResult;
+
+        this.ecuObservations =
+                Collections.unmodifiableList(
+                        new ArrayList<>(
+                                ecuObservations
+                        )
+                );
     }
 
     /**
@@ -118,7 +172,9 @@ public class DiagnosticDiscoveryResult {
     }
 
     /**
-     * Restituisce l'identificazione ECU.
+     * Restituisce l'identificazione ECU principale.
+     *
+     * Mantiene la compatibilità con il modello precedente.
      *
      * @return identificazione oppure null.
      */
@@ -129,7 +185,7 @@ public class DiagnosticDiscoveryResult {
     }
 
     /**
-     * Indica se è stata effettuata l'identificazione ECU.
+     * Indica se è stata effettuata un'identificazione ECU principale.
      *
      * @return true se disponibile.
      */
@@ -139,7 +195,9 @@ public class DiagnosticDiscoveryResult {
     }
 
     /**
-     * Restituisce il risultato del matching ECU.
+     * Restituisce il risultato principale del matching ECU.
+     *
+     * Mantiene la compatibilità con il modello precedente.
      *
      * @return risultato oppure null.
      */
@@ -150,13 +208,38 @@ public class DiagnosticDiscoveryResult {
     }
 
     /**
-     * Indica se è disponibile un risultato ECU.
+     * Indica se è disponibile un risultato ECU principale.
      *
      * @return true se disponibile.
      */
     public boolean hasEcuMatchResult() {
 
         return ecuMatchResult != null;
+    }
+
+    /**
+     * Restituisce tutte le observations ECU.
+     *
+     * Ogni observation rappresenta una ECU interrogata
+     * e conserva separatamente la relativa identificazione
+     * e il relativo risultato di matching.
+     *
+     * @return lista immutabile delle observations.
+     */
+    @NonNull
+    public List<EcuDiscoveryObservation> getEcuObservations() {
+
+        return ecuObservations;
+    }
+
+    /**
+     * Indica se esistono observations ECU.
+     *
+     * @return true se almeno una ECU è stata osservata.
+     */
+    public boolean hasEcuObservations() {
+
+        return !ecuObservations.isEmpty();
     }
 
     /**
