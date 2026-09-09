@@ -11,6 +11,8 @@ import com.dipasoftware.autodiag.connection.Connection;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.List;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
@@ -36,6 +38,9 @@ import static org.junit.Assert.assertTrue;
  *     EcuIdentifier
  *      ↓
  *     EcuCatalogMatcher
+ *
+ * Verifica inoltre la nuova discovery multi-ECU tramite
+ * EcuDiscoveryObservation.
  *
  * Nessuna ECU reale viene utilizzata.
  *
@@ -180,6 +185,183 @@ public class DiagnosticDiscoveryServiceTest {
                 result
                         .getEcuIdentification()
                         .getVin()
+        );
+    }
+
+    /**
+     * Verifica che il risultato della discovery contenga
+     * una observation per la ECU identificata.
+     *
+     * Questo test protegge la nuova relazione:
+     *
+     * candidate -> identification -> match
+     */
+    @Test
+    public void discoveryCreatesEcuObservation()
+            throws Exception {
+
+        FakeConnection connection =
+                new FakeConnection();
+
+        DiagnosticPidExecutor executor =
+                new DiagnosticPidExecutor(
+                        connection
+                );
+
+        Context context =
+                ApplicationProvider
+                        .getApplicationContext();
+
+        DiagnosticDiscoveryService service =
+                new DiagnosticDiscoveryService(
+                        context,
+                        executor
+                );
+
+        DiagnosticDiscoveryResult result =
+                service.discover();
+
+        assertNotNull(
+                result
+        );
+
+        assertTrue(
+                result.hasEcuObservations()
+        );
+
+        assertEquals(
+                1,
+                result
+                        .getEcuObservations()
+                        .size()
+        );
+
+        EcuDiscoveryObservation observation =
+                result
+                        .getEcuObservations()
+                        .get(0);
+
+        assertNotNull(
+                observation
+        );
+
+        assertNotNull(
+                observation.getCandidate()
+        );
+
+        assertNotNull(
+                observation.getIdentification()
+        );
+
+        assertEquals(
+                TEST_VIN,
+                observation
+                        .getIdentification()
+                        .getVin()
+        );
+    }
+
+    /**
+     * Verifica che l'observation mantenga anche il risultato
+     * del matching associato alla stessa ECU.
+     */
+    @Test
+    public void ecuObservationKeepsItsMatchResult()
+            throws Exception {
+
+        FakeConnection connection =
+                new FakeConnection();
+
+        DiagnosticPidExecutor executor =
+                new DiagnosticPidExecutor(
+                        connection
+                );
+
+        Context context =
+                ApplicationProvider
+                        .getApplicationContext();
+
+        DiagnosticDiscoveryService service =
+                new DiagnosticDiscoveryService(
+                        context,
+                        executor
+                );
+
+        DiagnosticDiscoveryResult result =
+                service.discover();
+
+        assertTrue(
+                result.hasEcuObservations()
+        );
+
+        EcuDiscoveryObservation observation =
+                result
+                        .getEcuObservations()
+                        .get(0);
+
+        assertTrue(
+                observation.hasMatchResult()
+        );
+
+        assertNotNull(
+                observation.getMatchResult()
+        );
+
+        /*
+         * Il risultato principale legacy deve riferirsi
+         * allo stesso match della observation primaria.
+         */
+        assertSame(
+                result.getEcuMatchResult(),
+                observation.getMatchResult()
+        );
+    }
+
+    /**
+     * Verifica che il VIN della vecchia API e quello
+     * della nuova observation siano coerenti.
+     */
+    @Test
+    public void legacyAndObservationIdentificationAreConsistent()
+            throws Exception {
+
+        FakeConnection connection =
+                new FakeConnection();
+
+        DiagnosticPidExecutor executor =
+                new DiagnosticPidExecutor(
+                        connection
+                );
+
+        Context context =
+                ApplicationProvider
+                        .getApplicationContext();
+
+        DiagnosticDiscoveryService service =
+                new DiagnosticDiscoveryService(
+                        context,
+                        executor
+                );
+
+        DiagnosticDiscoveryResult result =
+                service.discover();
+
+        assertTrue(
+                result.hasEcuIdentification()
+        );
+
+        assertTrue(
+                result.hasEcuObservations()
+        );
+
+        EcuDiscoveryObservation observation =
+                result
+                        .getEcuObservations()
+                        .get(0);
+
+        assertSame(
+                result.getEcuIdentification(),
+                observation.getIdentification()
         );
     }
 
@@ -439,7 +621,10 @@ public class DiagnosticDiscoveryServiceTest {
         }
     }
 
-
+    /**
+     * Verifica che VehicleIdentifier ed EcuIdentifier
+     * condividano lo stesso DiagnosticPidExecutor.
+     */
     @Test
     public void vehicleAndEcuIdentifiersShareExecutor() {
 
@@ -453,7 +638,7 @@ public class DiagnosticDiscoveryServiceTest {
 
         DiagnosticDiscoveryService service =
                 new DiagnosticDiscoveryService(
-                        androidx.test.core.app.ApplicationProvider
+                        ApplicationProvider
                                 .getApplicationContext(),
                         executor
                 );
@@ -471,7 +656,10 @@ public class DiagnosticDiscoveryServiceTest {
         );
     }
 
-
+    /**
+     * Verifica che il service utilizzi l'executor
+     * della DiagnosticDiscoverySession.
+     */
     @Test
     public void serviceUsesDiscoverySessionExecutor() {
 
@@ -487,7 +675,7 @@ public class DiagnosticDiscoveryServiceTest {
 
         DiagnosticDiscoveryService service =
                 new DiagnosticDiscoveryService(
-                        androidx.test.core.app.ApplicationProvider
+                        ApplicationProvider
                                 .getApplicationContext(),
                         session
                 );
