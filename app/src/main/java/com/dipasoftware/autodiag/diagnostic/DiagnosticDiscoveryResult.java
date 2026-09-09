@@ -43,7 +43,7 @@ public class DiagnosticDiscoveryResult {
     private final VehicleIdentification vehicleIdentification;
 
     /**
-     * ECU candidate ottenute dal catalogo.
+     * ECU candidate ottenute dal filtro veicolo.
      */
     @NonNull
     private final List<EcuDefinition> vehicleCandidates;
@@ -146,7 +146,6 @@ public class DiagnosticDiscoveryResult {
      */
     @NonNull
     public VehicleIdentification getVehicleIdentification() {
-
         return vehicleIdentification;
     }
 
@@ -157,7 +156,6 @@ public class DiagnosticDiscoveryResult {
      */
     @NonNull
     public List<EcuDefinition> getVehicleCandidates() {
-
         return vehicleCandidates;
     }
 
@@ -167,7 +165,6 @@ public class DiagnosticDiscoveryResult {
      * @return true se presenti.
      */
     public boolean hasVehicleCandidates() {
-
         return !vehicleCandidates.isEmpty();
     }
 
@@ -180,7 +177,6 @@ public class DiagnosticDiscoveryResult {
      */
     @Nullable
     public EcuIdentification getEcuIdentification() {
-
         return ecuIdentification;
     }
 
@@ -190,7 +186,6 @@ public class DiagnosticDiscoveryResult {
      * @return true se disponibile.
      */
     public boolean hasEcuIdentification() {
-
         return ecuIdentification != null;
     }
 
@@ -203,7 +198,6 @@ public class DiagnosticDiscoveryResult {
      */
     @Nullable
     public EcuMatchResult getEcuMatchResult() {
-
         return ecuMatchResult;
     }
 
@@ -213,7 +207,6 @@ public class DiagnosticDiscoveryResult {
      * @return true se disponibile.
      */
     public boolean hasEcuMatchResult() {
-
         return ecuMatchResult != null;
     }
 
@@ -228,7 +221,6 @@ public class DiagnosticDiscoveryResult {
      */
     @NonNull
     public List<EcuDiscoveryObservation> getEcuObservations() {
-
         return ecuObservations;
     }
 
@@ -238,7 +230,6 @@ public class DiagnosticDiscoveryResult {
      * @return true se almeno una ECU è stata osservata.
      */
     public boolean hasEcuObservations() {
-
         return !ecuObservations.isEmpty();
     }
 
@@ -246,9 +237,42 @@ public class DiagnosticDiscoveryResult {
      * Indica se la discovery ha identificato automaticamente
      * una ECU in modo sufficientemente sicuro.
      *
+     * Regole:
+     *
+     * 1. Se esistono observations:
+     *
+     *      - deve essercene esattamente una;
+     *      - deve avere un match;
+     *      - il match deve consentire l'autoselezione.
+     *
+     * 2. Se non esistono observations:
+     *
+     *      viene mantenuto il comportamento legacy basato
+     *      su ecuMatchResult.
+     *
+     * In particolare, la presenza di più observations impedisce
+     * sempre l'autoselezione automatica.
+     *
      * @return true se autoselezione possibile.
      */
     public boolean isAutoSelectionSafe() {
+
+        if (!ecuObservations.isEmpty()) {
+
+            if (ecuObservations.size() != 1) {
+                return false;
+            }
+
+            EcuDiscoveryObservation observation =
+                    ecuObservations.get(0);
+
+            EcuMatchResult matchResult =
+                    observation.getMatchResult();
+
+            return matchResult != null
+                    &&
+                    matchResult.isAutoSelectionSafe();
+        }
 
         return ecuMatchResult != null
                 &&
