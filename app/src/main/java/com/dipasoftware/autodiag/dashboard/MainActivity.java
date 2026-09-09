@@ -18,8 +18,14 @@ import com.dipasoftware.autodiag.bluetooth.BluetoothPermissionManager;
 import com.dipasoftware.autodiag.connection.BluetoothConnection;
 import com.dipasoftware.autodiag.connection.ConnectionManager;
 import com.dipasoftware.autodiag.databinding.ActivityMainBinding;
+import com.dipasoftware.autodiag.diagnostic.DiagnosticDiscoveryResult;
+import com.dipasoftware.autodiag.diagnostic.DiagnosticDiscoveryService;
+import com.dipasoftware.autodiag.diagnostic.DiagnosticDiscoverySession;
+import com.dipasoftware.autodiag.diagnostic.DiagnosticPidExecutor;
 import com.dipasoftware.autodiag.diagnostic.DiagnosticRealConnectionCheck;
 import com.dipasoftware.autodiag.diagnostic.DiagnosticRealVehicleCheck;
+import com.dipasoftware.autodiag.diagnostic.EcuDefinition;
+import com.dipasoftware.autodiag.diagnostic.EcuIdentification;
 import com.dipasoftware.autodiag.diagnostic.Elm327Manager;
 import com.dipasoftware.autodiag.settings.BluetoothSettingsFragment;
 import com.dipasoftware.autodiag.settings.SettingsFragment;
@@ -733,12 +739,70 @@ public class MainActivity extends AppCompatActivity {
 
                 Log.d("MainActivity","Avvio lettura VIN reale...");
                 /////////////////////////////////////////////////////////DiagnosticRealVehicleCheck.Result vehicleResult = vehicleCheck.readVin();
-                Log.d("MainActivity","VIN reale ricevuto: " + vehicleResult.getVin());
+                /*Log.d("MainActivity","VIN reale ricevuto: " + vehicleResult.getVin());
 
                 if (vehicleResult.getReportFile() != null) {
                     Log.d("MainActivity","Report VIN salvato in: " + vehicleResult.getReportFile().getAbsolutePath());
                 }
-                runOnUiThread(() -> Toast.makeText(this, "VIN: " + vehicleResult.getVin(), Toast.LENGTH_LONG).show());
+                runOnUiThread(() -> Toast.makeText(this, "VIN: " + vehicleResult.getVin(), Toast.LENGTH_LONG).show());*/
+
+                Log.d("MainActivity", "VIN reale ricevuto: " + vehicleResult.getVin());
+
+                if (vehicleResult.getReportFile() != null) {
+                    Log.d("MainActivity", "Report VIN salvato in: " + vehicleResult.getReportFile().getAbsolutePath());
+                }
+
+                /*
+                 * ---------------------------------------------------------
+                 * ECU DISCOVERY
+                 * ---------------------------------------------------------
+                 *
+                 * Se il VIN è disponibile, DiagnosticDiscoveryService
+                 * lo utilizzerà per restringere le candidate.
+                 *
+                 * Se il VIN non è disponibile, verrà utilizzato il fallback
+                 * ECU già implementato in DiagnosticDiscoveryService.
+                 */
+
+                Log.d("MainActivity","INIZIO ECU DISCOVERY");
+
+                DiagnosticPidExecutor discoveryExecutor = manager.createCatalogDiagnosticPidExecutor();
+                DiagnosticDiscoverySession discoverySession = new DiagnosticDiscoverySession(discoveryExecutor);
+
+                DiagnosticDiscoveryService discoveryService = new DiagnosticDiscoveryService(getApplicationContext(),discoverySession);
+
+                DiagnosticDiscoveryResult discoveryResult = discoveryService.discover();
+
+                Log.d("MainActivity","ECU DISCOVERY COMPLETATA");
+
+                Log.d("MainActivity","VIN DISCOVERY: " + discoveryResult.getVehicleIdentification().getVin());
+
+                Log.d("MainActivity","ECU CANDIDATE: " + discoveryResult.getVehicleCandidates().size());
+
+                for (EcuDefinition ecu : discoveryResult.getVehicleCandidates()) {
+                    Log.d("MainActivity","ECU CANDIDATA: " + ecu.getEcu());
+                }
+
+                if (discoveryResult.hasEcuIdentification()) {
+                    EcuIdentification identification = discoveryResult.getEcuIdentification();
+                    Log.d("MainActivity","ECU VIN: " + identification.getVin());
+                    Log.d("MainActivity","ECU HW: " + identification.getEcuHardwareNumber());
+                    Log.d("MainActivity","ECU SW: " + identification.getEcuSoftwareNumber());
+                    Log.d("MainActivity","ECU PART: " + identification.getEcuPartNumber());
+                    Log.d("MainActivity","ECU SUPPLIER: " + identification.getSupplier());
+                }
+
+                if (discoveryResult.hasEcuMatchResult()) {
+                    Log.d("MainActivity","ECU MATCH DISPONIBILE");
+                    Log.d("MainActivity","AUTO SELECTION SAFE: " + discoveryResult.isAutoSelectionSafe());
+                } else {
+                    Log.d("MainActivity","NESSUN ECU MATCH");
+                }
+
+                discoveryService.close();
+                runOnUiThread(() -> Toast.makeText(this,"ECU discovery completata",Toast.LENGTH_LONG).show());
+
+
             } catch (IOException exception) {
                 Log.e("MainActivity", "Errore durante il test ELM327/VIN",exception);
                 runOnUiThread(() -> Toast.makeText(this,"Test diagnostico fallito: " + exception.getMessage(),Toast.LENGTH_LONG).show()

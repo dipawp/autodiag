@@ -1,5 +1,7 @@
 package com.dipasoftware.autodiag.diagnostic;
 
+import android.util.Log;
+
 import androidx.annotation.NonNull;
 
 import java.util.ArrayList;
@@ -83,9 +85,11 @@ public class ObdVehicleInformationParser {
 
         if (bytes.isEmpty()) {
 
-            throw new IllegalArgumentException(
-                    "Risposta Mode 09 vuota."
-            );
+
+            Log.d("MainActivity","Risposta Mode 09 vuota");
+
+
+            //throw new IllegalArgumentException("Risposta Mode 09 vuota.");
         }
 
         String request =
@@ -141,10 +145,8 @@ public class ObdVehicleInformationParser {
 
         if (responseStart < 0) {
 
-            throw new IllegalArgumentException(
-                    "Risposta VIN non riconosciuta: "
-                            + response
-            );
+            Log.d("MainActivity", "Risposta VIN non riconosciuta: " + response);
+            //throw new IllegalArgumentException("Risposta VIN non riconosciuta: " + response);
         }
 
         /*
