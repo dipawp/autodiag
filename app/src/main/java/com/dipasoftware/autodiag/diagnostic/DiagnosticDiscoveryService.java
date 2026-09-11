@@ -40,7 +40,7 @@ import java.util.List;
  *
  * ****************************************************************************
  */
-public class DiagnosticDiscoveryService {
+public class DiagnosticDiscoveryService implements DiagnosticDiscoveryCoordinator.DiscoveryRunner{
 
     /**
      * Identificatore veicolo.
@@ -194,6 +194,7 @@ public class DiagnosticDiscoveryService {
      *
      * @return risultato discovery.
      */
+    @Override
     @NonNull
     public DiagnosticDiscoveryResult discover() {
 
