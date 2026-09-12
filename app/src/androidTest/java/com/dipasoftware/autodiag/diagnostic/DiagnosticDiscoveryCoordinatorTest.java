@@ -65,7 +65,7 @@ public class DiagnosticDiscoveryCoordinatorTest {
         );
 
         assertTrue(
-                result.hasSelectionCandidate()
+                result.hasSelectedEcu()
         );
     }
 
@@ -106,6 +106,10 @@ public class DiagnosticDiscoveryCoordinatorTest {
 
         assertTrue(
                 result.requiresUserConfirmation()
+        );
+
+        assertTrue(
+                result.hasCandidateForConfirmation()
         );
     }
 
@@ -196,6 +200,7 @@ public class DiagnosticDiscoveryCoordinatorTest {
         EcuMatchResult matchResult = null;
 
         if (!observations.isEmpty()) {
+
             EcuDiscoveryObservation observation =
                     observations.get(0);
 

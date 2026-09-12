@@ -2,53 +2,14 @@ package com.dipasoftware.autodiag.diagnostic;
 
 import androidx.annotation.NonNull;
 
-/**
- * ****************************************************************************
- *
- * Classe.....: DiagnosticDiscoveryCoordinator
- *
- * Tipo.......: Application coordinator
- *
- * Descrizione:
- *
- * Coordina il passaggio dalla discovery diagnostica alla decisione di
- * selezione ECU.
- *
- * Il coordinatore non esegue direttamente comunicazione diagnostica:
- *
- * DiagnosticDiscoveryService
- *          ->
- * DiagnosticDiscoveryResult
- *          ->
- * EcuSelectionPolicy
- *          ->
- * EcuSelectionPolicy.Result
- *
- * L'uso di DiscoveryRunner mantiene il coordinatore indipendente dalla
- * concreta implementazione della discovery e permette test unitari semplici.
- *
- * ****************************************************************************
- */
 public class DiagnosticDiscoveryCoordinator {
 
-    /**
-     * Provider astratto della discovery.
-     *
-     * Permette di testare il coordinatore senza aprire una connessione
-     * diagnostica reale.
-     */
     public interface DiscoveryRunner {
 
         @NonNull
         DiagnosticDiscoveryResult discover();
     }
 
-    /**
-     * Risultato completo del coordinamento.
-     *
-     * Contiene sia il risultato grezzo della discovery sia la decisione
-     * prodotta dalla policy.
-     */
     public static class Result {
 
         @NonNull
@@ -57,7 +18,7 @@ public class DiagnosticDiscoveryCoordinator {
         @NonNull
         private final EcuSelectionPolicy.Result selectionResult;
 
-        public Result(
+        private Result(
                 @NonNull DiagnosticDiscoveryResult discoveryResult,
                 @NonNull EcuSelectionPolicy.Result selectionResult) {
 
@@ -87,8 +48,20 @@ public class DiagnosticDiscoveryCoordinator {
             return selectionResult.hasMultipleEcus();
         }
 
-        public boolean hasSelectionCandidate() {
-            return selectionResult.hasSelection();
+        /**
+         * Restituisce true quando esiste una ECU che la policy considera
+         * effettivamente selezionata automaticamente.
+         */
+        public boolean hasSelectedEcu() {
+            return selectionResult.hasSelectedEcu();
+        }
+
+        /**
+         * Restituisce true quando esiste una singola ECU candidata che
+         * deve essere confermata dall'utente.
+         */
+        public boolean hasCandidateForConfirmation() {
+            return selectionResult.hasCandidateForConfirmation();
         }
     }
 
@@ -106,11 +79,6 @@ public class DiagnosticDiscoveryCoordinator {
         this.selectionPolicy = selectionPolicy;
     }
 
-    /**
-     * Esegue discovery e applica la policy di selezione ECU.
-     *
-     * @return risultato completo discovery + selezione.
-     */
     @NonNull
     public Result discover() {
 

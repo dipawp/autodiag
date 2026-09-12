@@ -1,6 +1,10 @@
 package com.dipasoftware.autodiag.diagnostic;
 
-import androidx.annotation.NonNull;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import org.junit.Test;
@@ -9,370 +13,309 @@ import org.junit.runner.RunWith;
 import java.util.Arrays;
 import java.util.Collections;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
-
-/**
- * ****************************************************************************
- *
- * Classe.....: EcuSelectionPolicyTest
- *
- * Tipo.......: Android Instrumented Test
- *
- * Package....: com.dipasoftware.autodiag.diagnostic
- *
- * Descrizione:
- *
- * Verifica le regole di selezione ECU:
- *
- * - nessuna ECU;
- * - una ECU con match EXACT sicuro;
- * - una ECU con match non sicuro;
- * - più ECU;
- * - verifica che una sola ECU sicura venga restituita dalla policy.
- *
- * ****************************************************************************
- */
 @RunWith(AndroidJUnit4.class)
 public class EcuSelectionPolicyTest {
 
     @Test
     public void noObservationsProducesNone() {
 
-        DiagnosticDiscoveryResult discovery =
+        DiagnosticDiscoveryResult result =
                 createResult(
                         Collections.emptyList()
                 );
 
-        EcuSelectionPolicy policy =
-                new EcuSelectionPolicy();
+        EcuSelectionPolicy.Result selection =
+                new EcuSelectionPolicy().evaluate(result);
 
-        EcuSelectionPolicy.Result result =
-                policy.evaluate(
-                        discovery
-                );
-
-        assertEquals(
-                EcuSelectionPolicy.Status.NONE,
-                result.getStatus()
+        assertTrue(
+                selection.getStatus()
+                        == EcuSelectionPolicy.Status.NONE
         );
 
         assertFalse(
-                result.hasSelection()
+                selection.hasSelectedEcu()
+        );
+
+        assertFalse(
+                selection.hasCandidateForConfirmation()
+        );
+
+        assertFalse(
+                selection.hasMultipleEcus()
+        );
+
+        assertFalse(
+                selection.requiresUserConfirmation()
         );
     }
 
     @Test
     public void singleSafeObservationIsAutoSelected() {
 
-        EcuDefinition ecu =
-                createEcu(
-                        "ECU_A"
-                );
-
-        EcuIdentification identification =
-                createIdentification(
-                        "VIN_A"
-                );
-
-        EcuMatchResult match =
-                new EcuMatchResult(
-                        EcuMatchResult.Status.EXACT,
-                        ecu,
-                        100
-                );
-
         EcuDiscoveryObservation observation =
-                new EcuDiscoveryObservation(
-                        ecu,
-                        identification,
-                        match
+                createObservation(
+                        createExactMatch()
                 );
 
-        DiagnosticDiscoveryResult discovery =
+        DiagnosticDiscoveryResult result =
                 createResult(
-                        Collections.singletonList(
-                                observation
-                        )
+                        Collections.singletonList(observation)
                 );
 
-        EcuSelectionPolicy policy =
-                new EcuSelectionPolicy();
+        EcuSelectionPolicy.Result selection =
+                new EcuSelectionPolicy().evaluate(result);
 
-        EcuSelectionPolicy.Result result =
-                policy.evaluate(
-                        discovery
-                );
-
-        assertEquals(
-                EcuSelectionPolicy.Status.AUTO_SELECTED,
-                result.getStatus()
+        assertTrue(
+                selection.isAutoSelected()
         );
 
         assertTrue(
-                result.isAutoSelected()
+                selection.hasSelectedEcu()
+        );
+
+        assertFalse(
+                selection.hasCandidateForConfirmation()
         );
 
         assertSame(
                 observation,
-                result.getObservation()
+                selection.getObservation()
         );
     }
 
     @Test
     public void singleUnsafeObservationRequiresConfirmation() {
 
-        EcuDefinition ecu =
-                createEcu(
-                        "ECU_A"
-                );
-
-        EcuIdentification identification =
-                createIdentification(
-                        "VIN_A"
-                );
-
-        EcuMatchResult match =
-                new EcuMatchResult(
-                        EcuMatchResult.Status.PROBABLE,
-                        ecu,
-                        50
-                );
-
         EcuDiscoveryObservation observation =
-                new EcuDiscoveryObservation(
-                        ecu,
-                        identification,
-                        match
+                createObservation(
+                        createProbableMatch()
                 );
 
-        DiagnosticDiscoveryResult discovery =
+        DiagnosticDiscoveryResult result =
                 createResult(
-                        Collections.singletonList(
-                                observation
-                        )
+                        Collections.singletonList(observation)
                 );
 
-        EcuSelectionPolicy policy =
-                new EcuSelectionPolicy();
+        EcuSelectionPolicy.Result selection =
+                new EcuSelectionPolicy().evaluate(result);
 
-        EcuSelectionPolicy.Result result =
-                policy.evaluate(
-                        discovery
-                );
-
-        assertEquals(
-                EcuSelectionPolicy.Status.CONFIRMATION_REQUIRED,
-                result.getStatus()
+        assertTrue(
+                selection.requiresUserConfirmation()
         );
 
         assertTrue(
-                result.requiresUserConfirmation()
+                selection.hasCandidateForConfirmation()
+        );
+
+        assertFalse(
+                selection.hasSelectedEcu()
         );
 
         assertSame(
                 observation,
-                result.getObservation()
+                selection.getObservation()
         );
     }
 
     @Test
     public void multipleObservationsRequireManualSelection() {
 
-        EcuDefinition ecuA =
-                createEcu(
-                        "ECU_A"
+        EcuDiscoveryObservation first =
+                createObservation(
+                        createExactMatch()
                 );
 
-        EcuDefinition ecuB =
-                createEcu(
-                        "ECU_B"
+        EcuDiscoveryObservation second =
+                createObservation(
+                        createExactMatch()
                 );
 
-        EcuIdentification identificationA =
-                createIdentification(
-                        "VIN_A"
-                );
-
-        EcuIdentification identificationB =
-                createIdentification(
-                        "VIN_B"
-                );
-
-        EcuMatchResult matchA =
-                new EcuMatchResult(
-                        EcuMatchResult.Status.EXACT,
-                        ecuA,
-                        100
-                );
-
-        EcuMatchResult matchB =
-                new EcuMatchResult(
-                        EcuMatchResult.Status.EXACT,
-                        ecuB,
-                        100
-                );
-
-        EcuDiscoveryObservation observationA =
-                new EcuDiscoveryObservation(
-                        ecuA,
-                        identificationA,
-                        matchA
-                );
-
-        EcuDiscoveryObservation observationB =
-                new EcuDiscoveryObservation(
-                        ecuB,
-                        identificationB,
-                        matchB
-                );
-
-        DiagnosticDiscoveryResult discovery =
+        DiagnosticDiscoveryResult result =
                 createResult(
                         Arrays.asList(
-                                observationA,
-                                observationB
+                                first,
+                                second
                         )
                 );
 
-        EcuSelectionPolicy policy =
-                new EcuSelectionPolicy();
+        EcuSelectionPolicy.Result selection =
+                new EcuSelectionPolicy().evaluate(result);
 
-        EcuSelectionPolicy.Result result =
-                policy.evaluate(
-                        discovery
-                );
+        assertTrue(
+                selection.hasMultipleEcus()
+        );
 
-        assertEquals(
-                EcuSelectionPolicy.Status.MULTIPLE_ECUS,
-                result.getStatus()
+        assertFalse(
+                selection.hasSelectedEcu()
+        );
+
+        assertFalse(
+                selection.hasCandidateForConfirmation()
+        );
+
+        assertFalse(
+                selection.requiresUserConfirmation()
+        );
+
+        assertFalse(
+                selection.isAutoSelected()
         );
 
         assertTrue(
-                result.hasMultipleEcus()
-        );
-
-        assertFalse(
-                result.hasSelection()
-        );
-
-        assertFalse(
-                result.isAutoSelected()
+                selection.getObservation() == null
         );
     }
 
     @Test
     public void observationWithoutMatchRequiresConfirmation() {
 
-        EcuDefinition ecu =
-                createEcu(
-                        "ECU_A"
-                );
+        EcuDefinition definition =
+                createEcuDefinition();
 
         EcuIdentification identification =
-                createIdentification(
-                        "VIN_A"
+                new EcuIdentification(
+                        "",
+                        "HW123",
+                        "SW123",
+                        "01"
                 );
 
         EcuDiscoveryObservation observation =
                 new EcuDiscoveryObservation(
-                        ecu,
+                        definition,
                         identification,
                         null
                 );
 
-        DiagnosticDiscoveryResult discovery =
+        DiagnosticDiscoveryResult result =
                 createResult(
-                        Collections.singletonList(
-                                observation
-                        )
+                        Collections.singletonList(observation)
                 );
 
-        EcuSelectionPolicy policy =
-                new EcuSelectionPolicy();
+        EcuSelectionPolicy.Result selection =
+                new EcuSelectionPolicy().evaluate(result);
 
-        EcuSelectionPolicy.Result result =
-                policy.evaluate(
-                        discovery
-                );
-
-        assertEquals(
-                EcuSelectionPolicy.Status.CONFIRMATION_REQUIRED,
-                result.getStatus()
+        assertTrue(
+                selection.requiresUserConfirmation()
         );
 
-        assertSame(
-                observation,
-                result.getObservation()
+        assertTrue(
+                selection.hasCandidateForConfirmation()
+        );
+
+        assertFalse(
+                selection.hasSelectedEcu()
+        );
+
+        assertNotNull(
+                selection.getObservation()
         );
     }
 
-    @NonNull
     private DiagnosticDiscoveryResult createResult(
-            @NonNull java.util.List<EcuDiscoveryObservation> observations) {
+            java.util.List<EcuDiscoveryObservation> observations) {
+
+        EcuIdentification identification = null;
+        EcuMatchResult matchResult = null;
+
+        if (!observations.isEmpty()) {
+
+            EcuDiscoveryObservation observation =
+                    observations.get(0);
+
+            identification =
+                    observation.getIdentification();
+
+            matchResult =
+                    observation.getMatchResult();
+        }
 
         return new DiagnosticDiscoveryResult(
                 new VehicleIdentification(""),
                 Collections.emptyList(),
-                observations.isEmpty()
-                        ? null
-                        : observations.get(0).getIdentification(),
-                observations.isEmpty()
-                        ? null
-                        : observations.get(0).getMatchResult(),
+                identification,
+                matchResult,
                 observations
         );
     }
 
-    @NonNull
-    private EcuIdentification createIdentification(
-            @NonNull String vin) {
+    private EcuDiscoveryObservation createObservation(
+            EcuMatchResult matchResult) {
 
-        return new EcuIdentification(
-                vin,
-                "",
-                "",
-                ""
+        EcuDefinition definition =
+                createEcuDefinition();
+
+        EcuIdentification identification =
+                new EcuIdentification(
+                        "",
+                        "HW123",
+                        "SW123",
+                        "01"
+                );
+
+        return new EcuDiscoveryObservation(
+                definition,
+                identification,
+                matchResult
         );
     }
 
-    @NonNull
-    private EcuDefinition createEcu(
-            @NonNull String name) {
+    private EcuMatchResult createExactMatch() {
+
+        return new EcuMatchResult(
+                EcuMatchResult.Status.EXACT,
+                createEcuDefinition(),
+                100,
+                1,
+                false,
+                0,
+                100
+        );
+    }
+
+    private EcuMatchResult createProbableMatch() {
+
+        return new EcuMatchResult(
+                EcuMatchResult.Status.PROBABLE,
+                createEcuDefinition(),
+                50,
+                1,
+                false,
+                0,
+                50
+        );
+    }
+
+    private EcuDefinition createEcuDefinition() {
 
         DiagnosticTargetDefinition target =
                 new DiagnosticTargetDefinition(
-                        "CAN",
+                        "ISO_15765_4",
                         "7E0",
                         "7E8",
-                        "PHYSICAL",
+                        "NORMAL",
                         11,
                         500
                 );
 
-        EcuIdentificationDefinition identificationDefinition =
+        EcuIdentificationDefinition identification =
                 new EcuIdentificationDefinition(
-                        "22",
                         "F190",
                         "vin",
-                        "STRING",
-                        false,
-                        0,
-                        0
+                        "ascii",
+                        false
                 );
 
         return new EcuDefinition(
                 "TEST",
-                "SELECTION",
-                "TEST_ENGINE",
-                name,
-                "CAN",
-                "",
+                "MODEL",
+                "ENGINE",
+                "ECU",
+                "ISO_15765_4",
+                "test.xml",
                 new EcuDefinitionIdentifier(),
                 Collections.singletonList(
-                        identificationDefinition
+                        identification
                 ),
                 target,
                 Collections.emptyList()
