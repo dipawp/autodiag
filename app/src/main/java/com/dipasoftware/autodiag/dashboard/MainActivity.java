@@ -18,6 +18,7 @@ import com.dipasoftware.autodiag.bluetooth.BluetoothPermissionManager;
 import com.dipasoftware.autodiag.connection.BluetoothConnection;
 import com.dipasoftware.autodiag.connection.ConnectionManager;
 import com.dipasoftware.autodiag.databinding.ActivityMainBinding;
+import com.dipasoftware.autodiag.diagnostic.DiagnosticDiscoveryCoordinator;
 import com.dipasoftware.autodiag.diagnostic.DiagnosticDiscoveryResult;
 import com.dipasoftware.autodiag.diagnostic.DiagnosticDiscoveryService;
 import com.dipasoftware.autodiag.diagnostic.DiagnosticDiscoverySession;
@@ -25,7 +26,10 @@ import com.dipasoftware.autodiag.diagnostic.DiagnosticPidExecutor;
 import com.dipasoftware.autodiag.diagnostic.DiagnosticRealConnectionCheck;
 import com.dipasoftware.autodiag.diagnostic.DiagnosticRealVehicleCheck;
 import com.dipasoftware.autodiag.diagnostic.EcuDefinition;
+import com.dipasoftware.autodiag.diagnostic.EcuDiscoveryObservation;
 import com.dipasoftware.autodiag.diagnostic.EcuIdentification;
+import com.dipasoftware.autodiag.diagnostic.EcuSelectionDialog;
+import com.dipasoftware.autodiag.diagnostic.EcuSelectionPolicy;
 import com.dipasoftware.autodiag.diagnostic.Elm327Manager;
 import com.dipasoftware.autodiag.settings.BluetoothSettingsFragment;
 import com.dipasoftware.autodiag.settings.SettingsFragment;
@@ -53,7 +57,9 @@ import java.util.concurrent.Executors;
  * - BottomNavigation;
  * - Settings;
  * - permessi Bluetooth;
- * - riconnessione automatica dell'ELM327.
+ * - riconnessione automatica dell'ELM327;
+ * - discovery diagnostica del veicolo;
+ * - selezione/conferma dell'ECU.
  *
  ******************************************************************************/
 public class MainActivity extends AppCompatActivity {
@@ -84,7 +90,8 @@ public class MainActivity extends AppCompatActivity {
     private ConnectionManager connectionManager;
 
     /**
-     * Executor per la connessione automatica.
+     * Executor per la connessione automatica
+     * e per le operazioni diagnostiche.
      */
     private final ExecutorService connectionExecutor =
             Executors.newSingleThreadExecutor();
@@ -311,6 +318,9 @@ public class MainActivity extends AppCompatActivity {
                                         );
 
                                 break;
+
+                            default:
+                                break;
                         }
                     }
                 }
@@ -325,9 +335,6 @@ public class MainActivity extends AppCompatActivity {
         if (bluetoothPermissionManager
                 .hasRequiredPermissions(this)) {
 
-            /*
-             * Permessi già disponibili.
-             */
             startAutomaticConnection();
 
             return;
@@ -444,15 +451,14 @@ public class MainActivity extends AppCompatActivity {
                         connection
                 );
 
-                runOnUiThread(() -> {
-
-                    Toast.makeText(
-                            this,
-                            "Connesso automaticamente a "
-                                    + savedDevice.getDisplayName(),
-                            Toast.LENGTH_SHORT
-                    ).show();
-                });
+                runOnUiThread(() ->
+                        Toast.makeText(
+                                this,
+                                "Connesso automaticamente a "
+                                        + savedDevice.getDisplayName(),
+                                Toast.LENGTH_SHORT
+                        ).show()
+                );
 
             } catch (IOException exception) {
 
@@ -583,7 +589,6 @@ public class MainActivity extends AppCompatActivity {
         binding = null;
     }
 
-
     /**
      * Esegue il controllo non distruttivo dell'ELM327 dopo
      * una connessione Bluetooth riuscita.
@@ -593,12 +598,22 @@ public class MainActivity extends AppCompatActivity {
      * ATI
      * ATDP
      *
-     * Non viene eseguita alcuna richiesta diagnostica alla ECU.
+     * Non viene eseguita alcuna richiesta diagnostica alla ECU
+     * durante il controllo dell'adapter.
+     *
+     * Successivamente viene avviata la discovery diagnostica
+     * catalog-driven.
      */
-    private void runElm327ConnectionCheck(@NonNull BluetoothConnection connection) {
+    private void runElm327ConnectionCheck(
+            @NonNull BluetoothConnection connection) {
 
         connectionExecutor.execute(() -> {
-            Elm327Manager manager = new Elm327Manager(connection,getApplicationContext());
+
+            Elm327Manager manager =
+                    new Elm327Manager(
+                            connection,
+                            getApplicationContext()
+                    );
 
             try {
 
@@ -607,27 +622,45 @@ public class MainActivity extends AppCompatActivity {
                  * CHECK ADAPTER
                  * ---------------------------------------------------------
                  */
-                DiagnosticRealConnectionCheck.Result adapterResult = manager.checkRealConnection();
+                DiagnosticRealConnectionCheck.Result adapterResult =
+                        manager.checkRealConnection();
 
                 runOnUiThread(() -> {
+
                     String message;
+
                     if (adapterResult.isCanReady()) {
-                        message = "ELM327 pronto\n" + adapterResult.getIdentificationResponse() + "\n" + adapterResult.getProtocolResponse();
+
+                        message =
+                                "ELM327 pronto\n"
+                                        + adapterResult
+                                        .getIdentificationResponse()
+                                        + "\n"
+                                        + adapterResult
+                                        .getProtocolResponse();
+
                     } else {
-                        message = "ELM327 collegato\n" + adapterResult.getIdentificationResponse() + "\n" + adapterResult.getProtocolResponse();
+
+                        message =
+                                "ELM327 collegato\n"
+                                        + adapterResult
+                                        .getIdentificationResponse()
+                                        + "\n"
+                                        + adapterResult
+                                        .getProtocolResponse();
                     }
 
-                    Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+                    Toast.makeText(
+                            this,
+                            message,
+                            Toast.LENGTH_LONG
+                    ).show();
                 });
-
 
                 /*
                  * ---------------------------------------------------------
-                 * CHECK VIN
+                 * CHECK ADAPTER VALIDITÀ
                  * ---------------------------------------------------------
-                 *
-                 * Eseguiamo il VIN soltanto se il check adapter
-                 * ha prodotto un percorso CAN compatibile.
                  */
                 if (!adapterResult.isValid()) {
 
@@ -638,13 +671,6 @@ public class MainActivity extends AppCompatActivity {
 
                     return;
                 }
-
-                //DiagnosticRealVehicleCheck vehicleCheck = manager.createRealVehicleCheck(getApplicationContext());
-                /*
-                 * ---------------------------------------------------------
-                 * CHECK VIN
-                 * ---------------------------------------------------------
-                 */
 
                 Log.d(
                         "MainActivity",
@@ -669,16 +695,18 @@ public class MainActivity extends AppCompatActivity {
                                 + adapterResult.isKwpFastReady()
                 );
 
-                if (!adapterResult.isValid()) {
-
-                    Log.e(
-                            "MainActivity",
-                            "Adapter check non valido: STOP"
-                    );
-
-                    return;
-                }
-
+                /*
+                 * ---------------------------------------------------------
+                 * VIN
+                 * ---------------------------------------------------------
+                 *
+                 * Il VIN viene mantenuto come tentativo di identificazione
+                 * del veicolo, ma la discovery ECU NON dipende dal VIN.
+                 *
+                 * Se il VIN non è disponibile, il
+                 * DiagnosticDiscoveryService utilizzerà il proprio
+                 * percorso di fallback catalog-driven.
+                 */
                 Log.d(
                         "MainActivity",
                         "CREAZIONE DiagnosticRealVehicleCheck"
@@ -733,23 +761,21 @@ public class MainActivity extends AppCompatActivity {
                         ).show()
                 );
 
-
-
-
-
-                Log.d("MainActivity","Avvio lettura VIN reale...");
-                /////////////////////////////////////////////////////////DiagnosticRealVehicleCheck.Result vehicleResult = vehicleCheck.readVin();
-                /*Log.d("MainActivity","VIN reale ricevuto: " + vehicleResult.getVin());
+                Log.d(
+                        "MainActivity",
+                        "VIN reale ricevuto: "
+                                + vehicleResult.getVin()
+                );
 
                 if (vehicleResult.getReportFile() != null) {
-                    Log.d("MainActivity","Report VIN salvato in: " + vehicleResult.getReportFile().getAbsolutePath());
-                }
-                runOnUiThread(() -> Toast.makeText(this, "VIN: " + vehicleResult.getVin(), Toast.LENGTH_LONG).show());*/
 
-                Log.d("MainActivity", "VIN reale ricevuto: " + vehicleResult.getVin());
-
-                if (vehicleResult.getReportFile() != null) {
-                    Log.d("MainActivity", "Report VIN salvato in: " + vehicleResult.getReportFile().getAbsolutePath());
+                    Log.d(
+                            "MainActivity",
+                            "Report VIN salvato in: "
+                                    + vehicleResult
+                                    .getReportFile()
+                                    .getAbsolutePath()
+                    );
                 }
 
                 /*
@@ -757,60 +783,379 @@ public class MainActivity extends AppCompatActivity {
                  * ECU DISCOVERY
                  * ---------------------------------------------------------
                  *
-                 * Se il VIN è disponibile, DiagnosticDiscoveryService
-                 * lo utilizzerà per restringere le candidate.
+                 * La discovery viene ora coordinata da:
                  *
-                 * Se il VIN non è disponibile, verrà utilizzato il fallback
-                 * ECU già implementato in DiagnosticDiscoveryService.
+                 * DiagnosticDiscoveryService
+                 *          ↓
+                 * DiagnosticDiscoveryCoordinator
+                 *          ↓
+                 * EcuSelectionPolicy
+                 *
+                 * Non viene effettuata alcuna scansione CAN cieca.
                  */
-
-                Log.d("MainActivity","INIZIO ECU DISCOVERY");
-
-                DiagnosticPidExecutor discoveryExecutor = manager.createCatalogDiagnosticPidExecutor();
-                DiagnosticDiscoverySession discoverySession = new DiagnosticDiscoverySession(discoveryExecutor);
-
-                DiagnosticDiscoveryService discoveryService = new DiagnosticDiscoveryService(getApplicationContext(),discoverySession);
-
-                DiagnosticDiscoveryResult discoveryResult = discoveryService.discover();
-
-                Log.d("MainActivity","ECU DISCOVERY COMPLETATA");
-
-                Log.d("MainActivity","VIN DISCOVERY: " + discoveryResult.getVehicleIdentification().getVin());
-
-                Log.d("MainActivity","ECU CANDIDATE: " + discoveryResult.getVehicleCandidates().size());
-
-                for (EcuDefinition ecu : discoveryResult.getVehicleCandidates()) {
-                    Log.d("MainActivity","ECU CANDIDATA: " + ecu.getEcu());
-                }
-
-                if (discoveryResult.hasEcuIdentification()) {
-                    EcuIdentification identification = discoveryResult.getEcuIdentification();
-                    Log.d("MainActivity","ECU VIN: " + identification.getVin());
-                    Log.d("MainActivity","ECU HW: " + identification.getEcuHardwareNumber());
-                    Log.d("MainActivity","ECU SW: " + identification.getEcuSoftwareNumber());
-                    Log.d("MainActivity","ECU PART: " + identification.getEcuPartNumber());
-                    Log.d("MainActivity","ECU SUPPLIER: " + identification.getSupplier());
-                }
-
-                if (discoveryResult.hasEcuMatchResult()) {
-                    Log.d("MainActivity","ECU MATCH DISPONIBILE");
-                    Log.d("MainActivity","AUTO SELECTION SAFE: " + discoveryResult.isAutoSelectionSafe());
-                } else {
-                    Log.d("MainActivity","NESSUN ECU MATCH");
-                }
-
-                discoveryService.close();
-                runOnUiThread(() -> Toast.makeText(this,"ECU discovery completata",Toast.LENGTH_LONG).show());
-
+                runDiagnosticDiscovery(
+                        manager
+                );
 
             } catch (IOException exception) {
-                Log.e("MainActivity", "Errore durante il test ELM327/VIN",exception);
-                runOnUiThread(() -> Toast.makeText(this,"Test diagnostico fallito: " + exception.getMessage(),Toast.LENGTH_LONG).show()
+
+                Log.e(
+                        "MainActivity",
+                        "Errore durante il test ELM327/VIN",
+                        exception
                 );
+
+                runOnUiThread(() ->
+                        Toast.makeText(
+                                this,
+                                "Test diagnostico fallito: "
+                                        + exception.getMessage(),
+                                Toast.LENGTH_LONG
+                        ).show()
+                );
+
             } catch (RuntimeException exception) {
-                Log.e("MainActivity","Errore inatteso durante il test diagnostico",exception);
-                runOnUiThread(() -> Toast.makeText(this,"Errore inatteso durante il test diagnostico",Toast.LENGTH_LONG).show());
+
+                Log.e(
+                        "MainActivity",
+                        "Errore inatteso durante il test diagnostico",
+                        exception
+                );
+
+                runOnUiThread(() ->
+                        Toast.makeText(
+                                this,
+                                "Errore inatteso durante il test diagnostico",
+                                Toast.LENGTH_LONG
+                        ).show()
+                );
             }
         });
+    }
+
+    /**
+     * Esegue la discovery ECU tramite il coordinator.
+     *
+     * @param manager Elm327Manager già collegato.
+     */
+    private void runDiagnosticDiscovery(
+            @NonNull Elm327Manager manager) {
+
+        Log.d(
+                "MainActivity",
+                "INIZIO ECU DISCOVERY"
+        );
+
+        DiagnosticPidExecutor discoveryExecutor =
+                manager.createCatalogDiagnosticPidExecutor();
+
+        DiagnosticDiscoverySession discoverySession =
+                new DiagnosticDiscoverySession(
+                        discoveryExecutor
+                );
+
+        DiagnosticDiscoveryService discoveryService =
+                new DiagnosticDiscoveryService(
+                        getApplicationContext(),
+                        discoverySession
+                );
+
+        try {
+
+            DiagnosticDiscoveryCoordinator coordinator =
+                    new DiagnosticDiscoveryCoordinator(
+                            discoveryService,
+                            new EcuSelectionPolicy()
+                    );
+
+            DiagnosticDiscoveryCoordinator.Result coordinatorResult =
+                    coordinator.discover();
+
+            Log.d(
+                    "MainActivity",
+                    "ECU DISCOVERY COMPLETATA"
+            );
+
+            logDiscoveryResult(
+                    coordinatorResult.getDiscoveryResult()
+            );
+
+            /*
+             * La discovery è terminata.
+             *
+             * Il service non deve rimanere aperto mentre
+             * l'utente interagisce con la UI.
+             */
+            discoveryService.close();
+
+            runOnUiThread(() ->
+                    showEcuSelectionDialog(
+                            coordinatorResult
+                    )
+            );
+
+        } catch (RuntimeException exception) {
+
+            /*
+             * Garantisce la chiusura del service anche
+             * in caso di errore inatteso.
+             */
+            discoveryService.close();
+
+            throw exception;
+        }
+    }
+
+    /**
+     * Registra nei log il risultato completo della discovery.
+     *
+     * @param discoveryResult risultato discovery.
+     */
+    private void logDiscoveryResult(
+            @NonNull DiagnosticDiscoveryResult discoveryResult) {
+
+        Log.d(
+                "MainActivity",
+                "VIN DISCOVERY: "
+                        + discoveryResult
+                        .getVehicleIdentification()
+                        .getVin()
+        );
+
+        Log.d(
+                "MainActivity",
+                "ECU CANDIDATE: "
+                        + discoveryResult
+                        .getVehicleCandidates()
+                        .size()
+        );
+
+        for (
+                EcuDefinition ecu :
+                discoveryResult.getVehicleCandidates()
+        ) {
+
+            Log.d(
+                    "MainActivity",
+                    "ECU CANDIDATA: "
+                            + ecu.getEcu()
+            );
+        }
+
+        if (discoveryResult.hasEcuIdentification()) {
+
+            EcuIdentification identification =
+                    discoveryResult.getEcuIdentification();
+
+            Log.d(
+                    "MainActivity",
+                    "ECU VIN: "
+                            + identification.getVin()
+            );
+
+            Log.d(
+                    "MainActivity",
+                    "ECU HW: "
+                            + identification.getEcuHardwareNumber()
+            );
+
+            Log.d(
+                    "MainActivity",
+                    "ECU SW: "
+                            + identification.getEcuSoftwareNumber()
+            );
+
+            Log.d(
+                    "MainActivity",
+                    "ECU PART: "
+                            + identification.getEcuPartNumber()
+            );
+
+            Log.d(
+                    "MainActivity",
+                    "ECU SUPPLIER: "
+                            + identification.getSupplier()
+            );
+        }
+
+        if (discoveryResult.hasEcuMatchResult()) {
+
+            Log.d(
+                    "MainActivity",
+                    "ECU MATCH DISPONIBILE"
+            );
+
+            Log.d(
+                    "MainActivity",
+                    "AUTO SELECTION SAFE: "
+                            + discoveryResult.isAutoSelectionSafe()
+            );
+
+        } else {
+
+            Log.d(
+                    "MainActivity",
+                    "NESSUN ECU MATCH"
+            );
+        }
+
+        for (
+                EcuDiscoveryObservation observation :
+                discoveryResult.getEcuObservations()
+        ) {
+
+            Log.d(
+                    "MainActivity",
+                    "ECU OBSERVATION: "
+                            + observation
+                            .getCandidate()
+                            .getEcu()
+            );
+
+            if (observation.getMatchResult() != null) {
+
+                Log.d(
+                        "MainActivity",
+                        "ECU OBSERVATION AUTO SAFE: "
+                                + observation
+                                .getMatchResult()
+                                .isAutoSelectionSafe()
+                );
+            }
+        }
+    }
+
+    /**
+     * Mostra il dialog dedicato alla selezione ECU.
+     *
+     * @param coordinatorResult risultato del coordinator.
+     */
+    private void showEcuSelectionDialog(
+            @NonNull DiagnosticDiscoveryCoordinator.Result coordinatorResult) {
+
+        if (isFinishing() ||
+                isDestroyed()) {
+
+            Log.w(
+                    "MainActivity",
+                    "Activity non disponibile: "
+                            + "ECU selection dialog non mostrato."
+            );
+
+            return;
+        }
+
+        EcuSelectionDialog dialog =
+                new EcuSelectionDialog(
+                        this,
+                        coordinatorResult,
+                        new EcuSelectionDialog.Listener() {
+
+                            @Override
+                            public void onEcuSelected(
+                                    @NonNull EcuDiscoveryObservation observation) {
+
+                                handleSelectedEcu(
+                                        observation
+                                );
+                            }
+
+                            @Override
+                            public void onSelectionCancelled() {
+
+                                Log.d(
+                                        "MainActivity",
+                                        "Selezione ECU annullata."
+                                );
+
+                                Toast.makeText(
+                                        MainActivity.this,
+                                        "Selezione ECU annullata",
+                                        Toast.LENGTH_SHORT
+                                ).show();
+                            }
+                        }
+                );
+
+        dialog.setCanceledOnTouchOutside(
+                false
+        );
+
+        dialog.setCancelable(
+                false
+        );
+
+        dialog.show();
+    }
+
+    /**
+     * Gestisce l'ECU selezionata o confermata dall'utente.
+     *
+     * @param observation observation ECU selezionata.
+     */
+    private void handleSelectedEcu(
+            @NonNull EcuDiscoveryObservation observation) {
+
+        EcuDefinition ecu =
+                observation.getCandidate();
+
+        Log.d(
+                "MainActivity",
+                "ECU SELEZIONATA: "
+                        + ecu.getEcu()
+        );
+
+        Log.d(
+                "MainActivity",
+                "ECU BRAND: "
+                        + ecu.getBrand()
+        );
+
+        Log.d(
+                "MainActivity",
+                "ECU MODEL: "
+                        + ecu.getModel()
+        );
+
+        Log.d(
+                "MainActivity",
+                "ECU ENGINE: "
+                        + ecu.getEngine()
+        );
+
+        Log.d(
+                "MainActivity",
+                "ECU PROTOCOL: "
+                        + ecu.getProtocol()
+        );
+
+        /*
+         * Per ora la selezione viene solamente registrata.
+         *
+         * NON avviamo ancora operazioni ECU-specifiche.
+         *
+         * Il prossimo livello utilizzerà questa observation
+         * per costruire la sessione diagnostica ECU-specifica
+         * in modo read-only.
+         */
+        runOnUiThread(() ->
+                Toast.makeText(
+                        MainActivity.this,
+                        "ECU selezionata: "
+                                + ecu.getEcu(),
+                        Toast.LENGTH_LONG
+                ).show()
+        );
+    }
+
+    /**
+     * Restituisce il binding.
+     *
+     * @return binding oppure null quando Activity distrutta.
+     */
+    @Nullable
+    public ActivityMainBinding getCurrentBinding() {
+
+        return binding;
     }
 }
